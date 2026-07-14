@@ -1,26 +1,259 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand */
+  --cream: #fbf7f0;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --charcoal: #2a241d;
+  --charcoal-soft: #5c5347;
+  --charcoal-muted: #8a8174;
+  --amber-50: #fff8e6;
+  --amber-100: #ffefc2;
+  --amber-200: #ffe29b;
+  --amber-300: #ffd066;
+  --amber-400: #ffbc38;
+  --amber-500: #f5a623;
+  --amber-600: #dd8a0e;
+  --amber-700: #b56d0a;
+  --amber-800: #8a520b;
+  --border-soft: #ece3d3;
+  --border-strong: #ddd2bf;
+  --danger: #c0442c;
+  --danger-soft: #fdeceb;
+  --success: #3f7a4f;
+  --success-soft: #eaf4ed;
+  --info: #2f6fa8;
+  --info-soft: #e8f1f8;
+  --warning: #b56d0a;
+  --warning-soft: #fff4df;
+
+  --background: var(--cream);
+  --foreground: var(--charcoal);
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-full: 9999px;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgb(42 36 29 / 0.04);
+  --shadow-sm: 0 2px 8px rgb(42 36 29 / 0.06);
+  --shadow-md: 0 8px 24px rgb(42 36 29 / 0.08);
+  --shadow-lg: 0 16px 40px rgb(42 36 29 / 0.12);
+
+  /* Control sizes */
+  --control-h-sm: 2rem;
+  --control-h-md: 2.5rem;
+  --control-h-lg: 3rem;
+  --icon-sm: 1rem;
+  --icon-md: 1.125rem;
+  --icon-lg: 1.25rem;
+
+  /* Typography */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+
+  /* Layout */
+  --sidebar-w: 16.5rem;
+  --sidebar-w-collapsed: 4.75rem;
+  --header-h: 3.75rem;
+  --page-pad-x: 1.5rem;
+  --page-pad-y: 1.5rem;
+  --page-max: 90rem;
+  --table-row-h: 3.25rem;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 140ms;
+  --duration-base: 200ms;
 }
 
 @theme inline {
+  --color-cream: var(--cream);
+  --color-surface: var(--surface);
+  --color-charcoal: var(--charcoal);
+  --color-charcoal-soft: var(--charcoal-soft);
+  --color-amber-50: var(--amber-50);
+  --color-amber-100: var(--amber-100);
+  --color-amber-200: var(--amber-200);
+  --color-amber-300: var(--amber-300);
+  --color-amber-400: var(--amber-400);
+  --color-amber-500: var(--amber-500);
+  --color-amber-600: var(--amber-600);
+  --color-amber-700: var(--amber-700);
+  --color-amber-800: var(--amber-800);
+  --color-border-soft: var(--border-soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-info: var(--info);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-arabic);
+  --font-display: var(--font-arabic);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  direction: rtl;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-arabic), Tahoma, Arial, sans-serif;
+  font-feature-settings: "kern" 1;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  border-color: var(--border-soft);
+}
+
+::selection {
+  background: var(--amber-200);
+  color: var(--charcoal);
+}
+
+:focus-visible {
+  outline: 2px solid var(--amber-400);
+  outline-offset: 2px;
+}
+
+/* Technical / Latin fields stay LTR inside RTL UI */
+.ltr-field,
+input[type="email"],
+input[type="tel"],
+input[type="url"],
+input[type="number"],
+input[name="sku"],
+input[name="email"],
+input[name="phone"],
+input[autocomplete="username"],
+input[autocomplete="email"],
+input[autocomplete="tel"] {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: var(--radius-full);
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-scroll-rtl {
+  direction: rtl;
+}
+
+@keyframes order-row-flash {
+  0% {
+    background-color: rgb(255 239 194 / 1);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.order-row-highlight {
+  animation: order-row-flash 2.4s var(--ease-out);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f0e9dc 0%, #faf6ee 45%, #f0e9dc 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+.animate-in {
+  animation: fade-in-up var(--duration-base) var(--ease-out);
+}
+
+.page-shell {
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
+}
+
+.sticky-page-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-inline: calc(var(--page-pad-x) * -1);
+  margin-bottom: calc(var(--page-pad-y) * -1);
+  padding: var(--space-4) var(--page-pad-x);
+  background: rgb(251 247 240 / 0.92);
+  border-top: 1px solid var(--border-soft);
+  backdrop-filter: blur(10px);
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #invoice-print-area,
+  #invoice-print-area * {
+    visibility: visible;
+  }
+  #invoice-print-area {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100%;
+    padding: 24px;
+  }
 }
