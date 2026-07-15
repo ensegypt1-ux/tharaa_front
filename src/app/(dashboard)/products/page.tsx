@@ -158,7 +158,7 @@ function ProductsPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["products"] });
       void queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (err) => pushToast(getErrorMessage(err), "error"),
+    onError: (err) => pushToast(getErrorMessage(err), "amber"),
   });
 
   const categoryName = (product: Product) => {
