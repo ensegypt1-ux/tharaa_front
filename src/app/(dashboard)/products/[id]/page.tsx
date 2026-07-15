@@ -291,11 +291,18 @@ function ProductDetailInner({ id }: { id: string }) {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <FormField label={COMMON_AR.category} required error={errors.categoryId?.message}>
                   <Select {...register("categoryId")}>
-                    {categoriesQuery.data?.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.nameAr}
-                      </option>
-                    ))}
+                    {(categoriesQuery.data ?? [])
+                      .slice()
+                      .sort((a, b) => {
+                        const aKey = a.parentId ? `${a.parentId}:1:${a.nameAr}` : `${a.id}:0`;
+                        const bKey = b.parentId ? `${b.parentId}:1:${b.nameAr}` : `${b.id}:0`;
+                        return aKey.localeCompare(bKey, "ar");
+                      })
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.parentId ? `— ${c.nameAr}` : c.nameAr}
+                        </option>
+                      ))}
                   </Select>
                 </FormField>
                 <FormField label={COMMON_AR.unit} required error={errors.unit?.message}>

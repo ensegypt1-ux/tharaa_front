@@ -123,11 +123,18 @@ function MissingImagesPageInner() {
             className="w-44"
           >
             <option value="">كل الأقسام</option>
-            {categoriesQuery.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nameAr}
-              </option>
-            ))}
+            {(categoriesQuery.data ?? [])
+              .slice()
+              .sort((a, b) => {
+                const aKey = a.parentId ? `${a.parentId}:1:${a.nameAr}` : `${a.id}:0`;
+                const bKey = b.parentId ? `${b.parentId}:1:${b.nameAr}` : `${b.id}:0`;
+                return aKey.localeCompare(bKey, "ar");
+              })
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.parentId ? `— ${c.nameAr}` : c.nameAr}
+                </option>
+              ))}
           </Select>
           <label className="flex items-center gap-1.5 rounded-full border border-border-soft bg-surface px-3 py-1.5 text-sm text-charcoal-soft">
             <input

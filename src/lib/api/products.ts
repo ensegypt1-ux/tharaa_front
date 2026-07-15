@@ -6,6 +6,7 @@ export interface ListProductsParams {
   limit?: number;
   q?: string;
   categoryId?: string;
+  includeChildren?: boolean;
   isActive?: boolean;
   isFeatured?: boolean;
   isBestSeller?: boolean;
@@ -123,6 +124,17 @@ export async function setPrimaryImage(productId: string, imageId: string): Promi
 export async function deleteProductImage(productId: string, imageId: string): Promise<{ message: string }> {
   const res = await apiClient.delete<ApiEnvelope<{ message: string }>>(
     `/admin/products/${productId}/images/${imageId}`,
+  );
+  return res.data.data;
+}
+
+export async function bulkReassignProducts(
+  productIds: string[],
+  categoryId: string,
+): Promise<{ updated: number; categoryId: string }> {
+  const res = await apiClient.post<ApiEnvelope<{ updated: number; categoryId: string }>>(
+    "/admin/products/bulk-reassign",
+    { productIds, categoryId },
   );
   return res.data.data;
 }

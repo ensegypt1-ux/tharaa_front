@@ -56,6 +56,7 @@ import { prepareImageForUpload } from "@/lib/utils/imageUpload";
 const categorySchema = z.object({
   nameAr: z.string().min(1, "الاسم بالعربية مطلوب"),
   nameEn: z.string().min(1, "الاسم بالإنجليزية مطلوب"),
+  parentId: z.string().uuid().optional().or(z.literal("")),
   sortOrder: z.coerce.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
 });
@@ -136,12 +137,26 @@ function CategoriesPageInner() {
     if (emptyOnly) rows = rows.filter((c) => (c.productCount ?? 0) === 0);
     if (missingImageOnly) rows = rows.filter((c) => !c.imageUrl && !c.hasImage);
     rows.sort((a, b) => {
+      const aParent = a.parentId ?? "";
+      const bParent = b.parentId ?? "";
+      // Tree order: parents first, children under their parent
+      const aKey = a.parentId
+        ? `${a.parentId}:1:${a.nameAr}`
+        : `${a.id}:0:${a.nameAr}`;
+      const bKey = b.parentId
+        ? `${b.parentId}:1:${b.nameAr}`
+        : `${b.id}:0:${b.nameAr}`;
       if (sort === "name") return a.nameAr.localeCompare(b.nameAr, "ar");
-      if (sort === "products") return (b.productCount ?? 0) - (a.productCount ?? 0);
+      if (sort === "products") {
+        return (b.totalProductCount ?? b.productCount ?? 0) - (a.totalProductCount ?? a.productCount ?? 0);
+      }
       if (sort === "updated") {
         return String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""));
       }
-      return a.sortOrder - b.sortOrder || a.nameAr.localeCompare(b.nameAr, "ar");
+      if (aParent !== bParent && (a.parentId === b.id || b.parentId === a.id || aParent || bParent)) {
+        return aKey.localeCompare(bKey, "ar");
+      }
+      return a.sortOrder - b.sortOrder || aKey.localeCompare(bKey, "ar");
     });
     return rows;
   }, [categoriesQuery.data, q, statusFilter, emptyOnly, missingImageOnly, sort]);
@@ -163,8 +178,13 @@ function CategoriesPageInner() {
     reset,
     formState: { errors, isSubmitting },
   } = useZodForm(categorySchema, {
-    defaultValues: { nameAr: "", nameEn: "", sortOrder: 0, isActive: true },
+    defaultValues: { nameAr: "", nameEn: "", parentId: "", sortOrder: 0, isActive: true },
   });
+
+  const parentOptions = useMemo(
+    () => (categoriesQuery.data ?? []).filter((c) => !c.parentId),
+    [categoriesQuery.data],
+  );
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["categories"] });
@@ -172,7 +192,13 @@ function CategoriesPageInner() {
   };
 
   const openCreate = () => {
-    reset({ nameAr: "", nameEn: "", sortOrder: categoriesQuery.data?.length ?? 0, isActive: true });
+    reset({
+      nameAr: "",
+      nameEn: "",
+      parentId: "",
+      sortOrder: parentOptions.length,
+      isActive: true,
+    });
     setFormError(null);
     setModal({ mode: "create" });
   };
@@ -181,6 +207,7 @@ function CategoriesPageInner() {
     reset({
       nameAr: category.nameAr,
       nameEn: category.nameEn,
+      parentId: category.parentId ?? "",
       sortOrder: category.sortOrder,
       isActive: category.isActive,
     });
@@ -190,10 +217,17 @@ function CategoriesPageInner() {
 
   const saveMutation = useMutation({
     mutationFn: async (values: CategoryFormValues) => {
+      const payload = {
+        nameAr: values.nameAr,
+        nameEn: values.nameEn,
+        sortOrder: values.sortOrder,
+        isActive: values.isActive,
+        parentId: values.parentId ? values.parentId : null,
+      };
       if (modal?.mode === "edit" && modal.category) {
-        return updateCategory(modal.category.id, values);
+        return updateCategory(modal.category.id, payload);
       }
-      return createCategory(values);
+      return createCategory(payload);
     },
     onSuccess: (saved) => {
       invalidate();
@@ -283,7 +317,20 @@ function CategoriesPageInner() {
     {
       key: "nameAr",
       header: "الاسم العربي",
-      render: (c) => <p className="font-medium text-charcoal">{c.nameAr}</p>,
+      render: (c) => (
+        <div className={c.parentId ? "ps-5" : undefined}>
+          <p className="font-medium text-charcoal">
+            {c.parentId ? `↳ ${c.nameAr}` : c.nameAr}
+          </p>
+          {c.parentId && c.parentNameAr ? (
+            <p className="text-xs text-charcoal-soft">ضمن: {c.parentNameAr}</p>
+          ) : (c.childrenCount ?? 0) > 0 ? (
+            <p className="text-xs text-charcoal-soft">
+              {formatNumber(c.childrenCount ?? 0)} أقسام فرعية
+            </p>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: "nameEn",
@@ -294,7 +341,16 @@ function CategoriesPageInner() {
       key: "productCount",
       header: "المنتجات",
       render: (c) => (
-        <Badge tone={(c.productCount ?? 0) > 0 ? "blue" : "gray"}>{formatNumber(c.productCount ?? 0)}</Badge>
+        <div className="space-y-0.5">
+          <Badge tone={(c.productCount ?? 0) > 0 ? "blue" : "gray"}>
+            مباشر: {formatNumber(c.productCount ?? 0)}
+          </Badge>
+          {!c.parentId && (c.childrenProductCount ?? 0) > 0 ? (
+            <p className="text-xs text-charcoal-soft">
+              إجمالي: {formatNumber(c.totalProductCount ?? c.productCount ?? 0)}
+            </p>
+          ) : null}
+        </div>
       ),
     },
     {
@@ -597,6 +653,26 @@ function CategoriesPageInner() {
             </FormField>
             <FormField label={COMMON_AR.nameEn} required error={errors.nameEn?.message}>
               <Input {...register("nameEn")} placeholder="Vegetables" className="ltr-field" />
+            </FormField>
+            <FormField
+              label="القسم الرئيسي (اختياري)"
+              hint="اتركه فارغًا للقسم الرئيسي. اختر قسمًا رئيسيًا لإنشاء قسم فرعي."
+            >
+              <Select
+                {...register("parentId")}
+                disabled={
+                  modal?.mode === "edit" && (modal.category?.childrenCount ?? 0) > 0
+                }
+              >
+                <option value="">— قسم رئيسي —</option>
+                {parentOptions
+                  .filter((p) => p.id !== modal?.category?.id)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nameAr}
+                    </option>
+                  ))}
+              </Select>
             </FormField>
             <div className="grid grid-cols-2 gap-4">
               <FormField label={COMMON_AR.sortOrder} hint="الأرقام الأصغر تظهر أولاً في التطبيق">

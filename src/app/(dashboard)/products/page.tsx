@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Eye,
+  FolderInput,
   ImageIcon,
   ImageOff,
   Package,
@@ -29,12 +30,15 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/LoadingState";
 import { IconButton } from "@/components/ui/IconButton";
 import { SkeletonTable } from "@/components/ui/Skeleton";
-import { listProducts } from "@/lib/api/products";
+import { Modal } from "@/components/ui/Modal";
+import { bulkReassignProducts, listProducts } from "@/lib/api/products";
 import { listCategories } from "@/lib/api/categories";
-import type { Product } from "@/lib/types";
+import type { Category, Product } from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils/format";
 import { COMMON_AR } from "@/lib/ar/labels";
 import { cn } from "@/lib/utils/cn";
+import { getErrorMessage } from "@/lib/api/errors";
+import { useToast } from "@/components/ui/Toaster";
 
 type TriState = "" | "true" | "false";
 
@@ -48,9 +52,30 @@ function imageCount(product: Product): number {
   return product.imageCount ?? product.images.length;
 }
 
+function buildCategoryOptions(categories: Category[]) {
+  const parents = categories.filter((c) => !c.parentId);
+  const childrenByParent = new Map<string, Category[]>();
+  for (const c of categories) {
+    if (!c.parentId) continue;
+    const list = childrenByParent.get(c.parentId) ?? [];
+    list.push(c);
+    childrenByParent.set(c.parentId, list);
+  }
+  const options: { id: string; label: string }[] = [];
+  for (const parent of parents) {
+    options.push({ id: parent.id, label: parent.nameAr });
+    for (const child of childrenByParent.get(parent.id) ?? []) {
+      options.push({ id: child.id, label: `— ${child.nameAr}` });
+    }
+  }
+  return options;
+}
+
 function ProductsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const { pushToast } = useToast();
   const [q, setQ] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [isActive, setIsActive] = useState<TriState>("");
@@ -62,6 +87,9 @@ function ProductsPageInner() {
   const [sortBy, setSortBy] = useState<"newest" | "name" | "price" | "stock">("newest");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkTargetCategoryId, setBulkTargetCategoryId] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
   const limit = 20;
 
   useEffect(() => {
@@ -74,10 +102,33 @@ function ProductsPageInner() {
 
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: listCategories });
 
+  const categoryOptions = useMemo(
+    () => buildCategoryOptions(categoriesQuery.data ?? []),
+    [categoriesQuery.data],
+  );
+
+  const selectedCategoryIsParent = useMemo(() => {
+    const cat = (categoriesQuery.data ?? []).find((c) => c.id === categoryId);
+    return Boolean(cat && !cat.parentId && (cat.childrenCount ?? 0) > 0);
+  }, [categoriesQuery.data, categoryId]);
+
   const productsQuery = useQuery({
     queryKey: [
       "products",
-      { q, categoryId, isActive, inStock, missingImages, lowStock, isFeatured, isBestSeller, sortBy, sortDir, page },
+      {
+        q,
+        categoryId,
+        isActive,
+        inStock,
+        missingImages,
+        lowStock,
+        isFeatured,
+        isBestSeller,
+        sortBy,
+        sortDir,
+        page,
+        includeChildren: selectedCategoryIsParent,
+      },
     ],
     queryFn: () =>
       listProducts({
@@ -85,6 +136,7 @@ function ProductsPageInner() {
         limit,
         q: q || undefined,
         categoryId: categoryId || undefined,
+        includeChildren: selectedCategoryIsParent || undefined,
         isActive: isActive === "" ? undefined : isActive === "true",
         inStock: inStock === "" ? undefined : inStock === "true",
         missingImages: missingImages || undefined,
@@ -96,12 +148,62 @@ function ProductsPageInner() {
       }),
   });
 
-  const categoryName = (product: Product) =>
-    product.category?.nameAr ??
-    categoriesQuery.data?.find((c) => c.id === product.categoryId)?.nameAr ??
-    COMMON_AR.uncategorized;
+  const bulkMutation = useMutation({
+    mutationFn: () => bulkReassignProducts(selectedIds, bulkTargetCategoryId),
+    onSuccess: (result) => {
+      pushToast(`تم نقل ${formatNumber(result.updated)} منتجًا.`, "success");
+      setSelectedIds([]);
+      setBulkOpen(false);
+      setBulkTargetCategoryId("");
+      void queryClient.invalidateQueries({ queryKey: ["products"] });
+      void queryClient.invalidateQueries({ queryKey: ["categories"] });
+    },
+    onError: (err) => pushToast(getErrorMessage(err), "error"),
+  });
+
+  const categoryName = (product: Product) => {
+    const fromProduct = product.category;
+    const cat =
+      fromProduct ??
+      categoriesQuery.data?.find((c) => c.id === product.categoryId);
+    if (!cat) return COMMON_AR.uncategorized;
+    const parentId = "parentId" in cat ? (cat as Category).parentId : undefined;
+    if (parentId) {
+      const parent = categoriesQuery.data?.find((c) => c.id === parentId);
+      return parent ? `${parent.nameAr} ← ${cat.nameAr}` : cat.nameAr;
+    }
+    const full = categoriesQuery.data?.find((c) => c.id === cat.id);
+    if (full?.parentId) {
+      const parent = categoriesQuery.data?.find((c) => c.id === full.parentId);
+      return parent ? `${parent.nameAr} ← ${full.nameAr}` : full.nameAr;
+    }
+    return cat.nameAr;
+  };
+
+  const pageIds = (productsQuery.data?.data ?? []).map((p) => p.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
 
   const columns: DataTableColumn<Product>[] = [
+    {
+      key: "select",
+      header: "حدد",
+      className: "w-10",
+      render: (p) => (
+        <input
+          type="checkbox"
+          className="size-4 accent-amber-500"
+          checked={selectedIds.includes(p.id)}
+          onChange={() =>
+            setSelectedIds((prev) =>
+              prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
+            )
+          }
+          onClick={(e) => e.stopPropagation()}
+          aria-label="تحديد المنتج"
+        />
+      ),
+    },
     {
       key: "image",
       header: "الصورة",
@@ -260,6 +362,12 @@ function ProductsPageInner() {
         description="كتالوج المنتجات — بحث، تصفية، ومتابعة المخزون والصور."
         actions={
           <>
+            {selectedIds.length > 0 && (
+              <Button variant="outline" onClick={() => setBulkOpen(true)}>
+                <FolderInput className="size-4" />
+                نقل المحدد ({formatNumber(selectedIds.length)})
+              </Button>
+            )}
             <Button variant="outline" onClick={() => router.push("/products/missing-images")}>
               <ImageIcon className="size-4" />
               الصور الناقصة
@@ -292,15 +400,30 @@ function ProductsPageInner() {
               setCategoryId(e.target.value);
               setPage(1);
             }}
-            className="w-40"
+            className="w-56"
           >
             <option value="">كل الأقسام</option>
-            {categoriesQuery.data?.map((c) => (
+            {categoryOptions.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nameAr}
+                {c.label}
               </option>
             ))}
           </Select>
+          <label className="flex items-center gap-1.5 text-xs text-charcoal-soft">
+            <input
+              type="checkbox"
+              className="size-4 accent-amber-500"
+              checked={allPageSelected}
+              onChange={() => {
+                if (allPageSelected) {
+                  setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)));
+                } else {
+                  setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+                }
+              }}
+            />
+            تحديد الصفحة
+          </label>
           <Select
             value={isActive}
             onChange={(e) => {
@@ -455,6 +578,41 @@ function ProductsPageInner() {
         </Link>
         .
       </p>
+
+      <Modal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        title="نقل المنتجات المحددة"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setBulkOpen(false)}>
+              {COMMON_AR.cancel}
+            </Button>
+            <Button
+              disabled={!bulkTargetCategoryId || selectedIds.length === 0}
+              isLoading={bulkMutation.isPending}
+              onClick={() => bulkMutation.mutate()}
+            >
+              نقل {formatNumber(selectedIds.length)} منتج
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-charcoal-soft">
+          اختر القسم أو القسم الفرعي لنقل المنتجات المحددة إليه.
+        </p>
+        <Select
+          value={bulkTargetCategoryId}
+          onChange={(e) => setBulkTargetCategoryId(e.target.value)}
+        >
+          <option value="">اختر القسم…</option>
+          {categoryOptions.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
+      </Modal>
     </div>
   );
 }

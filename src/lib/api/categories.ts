@@ -19,6 +19,7 @@ export async function getCategoryStats(id: string): Promise<CategoryStats> {
 export interface CategoryPayload {
   nameAr: string;
   nameEn: string;
+  parentId?: string | null;
   sortOrder?: number;
   isActive?: boolean;
 }

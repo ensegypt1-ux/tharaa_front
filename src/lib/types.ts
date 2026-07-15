@@ -9,6 +9,7 @@ export interface Meta {
 
 export interface Category {
   id: string;
+  parentId?: string | null;
   nameAr: string;
   nameEn: string;
   imageUrl: string | null;
@@ -20,6 +21,11 @@ export interface Category {
   activeProductCount?: number;
   inactiveProductCount?: number;
   outOfStockProductCount?: number;
+  parentNameAr?: string | null;
+  parentNameEn?: string | null;
+  childrenCount?: number;
+  childrenProductCount?: number;
+  totalProductCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }
