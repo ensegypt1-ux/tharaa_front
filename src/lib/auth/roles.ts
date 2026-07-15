@@ -9,6 +9,7 @@ export type NavKey =
   | "missingImages"
   | "offers"
   | "coupons"
+  | "campaigns"
   | "customers"
   | "reviews"
   | "notifications"
@@ -27,6 +28,7 @@ const ROLE_ACCESS: Record<UserRole, NavKey[] | "all"> = {
     "missingImages",
     "offers",
     "coupons",
+    "campaigns",
     "customers",
     "reviews",
     "notifications",
@@ -46,6 +48,7 @@ const ALL_NAV_KEYS: NavKey[] = [
   "missingImages",
   "offers",
   "coupons",
+  "campaigns",
   "customers",
   "reviews",
   "notifications",

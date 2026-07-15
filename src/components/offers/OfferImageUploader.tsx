@@ -16,6 +16,7 @@ export function OfferImageUploader({
   onDelete,
   onSelectPending,
   pendingOnly = false,
+  pendingHint = "سيتم رفع الصورة بعد حفظ العرض.",
   disabled,
   className,
 }: {
@@ -28,6 +29,7 @@ export function OfferImageUploader({
   /** Stage a file for upload after create (create mode). */
   onSelectPending?: (file: File | null) => void;
   pendingOnly?: boolean;
+  pendingHint?: string;
   disabled?: boolean;
   className?: string;
 }) {
@@ -186,8 +188,8 @@ export function OfferImageUploader({
         )}
       </div>
 
-      {pendingOnly && (
-        <p className="text-xs text-charcoal-soft">سيتم رفع الصورة بعد حفظ العرض.</p>
+      {pendingOnly && pendingHint && (
+        <p className="text-xs text-charcoal-soft">{pendingHint}</p>
       )}
 
       {localError && (

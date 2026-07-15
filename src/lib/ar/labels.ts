@@ -54,6 +54,15 @@ export const OFFER_SCOPE_AR: Record<string, string> = {
   CATEGORY: "قسم",
 };
 
+export const CAMPAIGN_DESTINATION_AR: Record<string, string> = {
+  OFFER: "عرض",
+  CATEGORY: "قسم",
+  PRODUCT: "منتج",
+  COUPON: "كوبون",
+  CART: "السلة",
+  NONE: "بدون وجهة",
+};
+
 export const COUPON_APPLICABILITY_AR: Record<string, string> = {
   ALL: "الكل",
   DELIVERY_ONLY: "التوصيل فقط",

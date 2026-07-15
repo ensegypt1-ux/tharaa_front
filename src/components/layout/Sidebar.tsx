@@ -19,7 +19,7 @@ import {
 const NAV_GROUPS: { title: string; keys: NavKey[] }[] = [
   { title: "التشغيل", keys: ["overview", "orders"] },
   { title: "الكتالوج", keys: ["categories", "products", "inventory", "missingImages"] },
-  { title: "التسويق", keys: ["offers", "coupons"] },
+  { title: "التسويق", keys: ["offers", "coupons", "campaigns"] },
   { title: "العملاء", keys: ["customers", "reviews", "notifications"] },
   { title: "الإعدادات", keys: ["delivery", "settings", "activity"] },
 ];

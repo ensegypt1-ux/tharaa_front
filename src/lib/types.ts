@@ -240,6 +240,34 @@ export interface Offer {
   updatedAt?: string;
 }
 
+export type CampaignDestinationType =
+  | "OFFER"
+  | "CATEGORY"
+  | "PRODUCT"
+  | "COUPON"
+  | "CART"
+  | "NONE";
+
+export interface Campaign {
+  id: string;
+  titleAr: string;
+  titleEn: string;
+  subtitleAr: string | null;
+  subtitleEn: string | null;
+  imageUrl: string | null;
+  imagePath?: string | null;
+  isActive: boolean;
+  startsAt: string;
+  endsAt: string;
+  sortOrder: number;
+  destinationType: CampaignDestinationType;
+  destinationId: string | null;
+  buttonLabelAr: string | null;
+  buttonLabelEn: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export type CouponApplicability = "ALL" | "DELIVERY_ONLY" | "PICKUP_ONLY";
 
 export interface Coupon {
