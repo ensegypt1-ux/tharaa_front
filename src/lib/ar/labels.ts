@@ -58,9 +58,82 @@ export const CAMPAIGN_DESTINATION_AR: Record<string, string> = {
   OFFER: "عرض",
   CATEGORY: "قسم",
   PRODUCT: "منتج",
-  COUPON: "كوبون",
+  COUPON: "كوبون (تطبيق تلقائي اختياري)",
   CART: "السلة",
+  CHECKOUT: "الدفع",
+  ORDERS: "طلباتي",
+  SEARCH: "البحث",
+  EXTERNAL_URL: "رابط خارجي",
+  INTERNAL_ROUTE: "مسار داخلي",
   NONE: "بدون وجهة",
+};
+
+export const CAMPAIGN_PLACEMENT_AR: Record<string, string> = {
+  HOME_HERO: "الرئيسية — بطل",
+  HOME_SLIDER: "الرئيسية — سلايدر",
+  HOME_STRIP: "الرئيسية — شريط",
+  HOME_CATEGORY_STRIP: "الرئيسية — شريط أقسام",
+  HOME_MIDDLE: "الرئيسية — وسط",
+  HOME_BOTTOM: "الرئيسية — أسفل",
+  CATEGORY_TOP: "القسم — أعلى",
+  CATEGORY_INLINE: "القسم — داخل القائمة",
+  PRODUCT_TOP: "المنتج — أعلى",
+  PRODUCT_AFTER_IMAGES: "المنتج — بعد الصور",
+  PRODUCT_BEFORE_DESCRIPTION: "المنتج — قبل الوصف",
+  PRODUCT_BOTTOM: "المنتج — أسفل",
+  OFFERS_TOP: "العروض — أعلى",
+  SEARCH_TOP: "البحث — أعلى",
+  CART_TOP: "السلة — أعلى",
+  CART_BOTTOM: "السلة — أسفل",
+  CHECKOUT_TOP: "الدفع — أعلى",
+  CHECKOUT_BOTTOM: "الدفع — أسفل",
+  ORDER_SUCCESS: "نجاح الطلب",
+};
+
+export const CAMPAIGN_LAYOUT_AR: Record<string, string> = {
+  HERO_BANNER: "بانر بطل",
+  SMALL_BANNER: "بانر صغير",
+  STRIP_BANNER: "شريط",
+  SQUARE_CARD: "بطاقة مربعة",
+  POPUP: "نافذة منبثقة",
+  COUPON_CARD: "بطاقة كوبون",
+  FLOATING_BANNER: "بانر عائم",
+  FLASH_SALE_CARD: "بطاقة تخفيض سريع",
+};
+
+export const CAMPAIGN_AUDIENCE_AR: Record<string, string> = {
+  ALL: "الجميع",
+  GUEST_ONLY: "زوار فقط",
+  LOGGED_IN_ONLY: "مسجلون فقط",
+};
+
+export const CAMPAIGN_FREQUENCY_AR: Record<string, string> = {
+  ALWAYS: "دائمًا",
+  ONCE: "مرة واحدة",
+  DAILY: "يوميًا",
+  EVERY_LAUNCH: "كل تشغيل للتطبيق",
+  EVERY_SESSION: "كل جلسة",
+  DISMISS_HOURS: "إخفاء لساعات",
+};
+
+export const CAMPAIGN_ROTATION_AR: Record<string, string> = {
+  PRIORITY: "حسب الأولوية",
+  WEIGHT: "حسب الوزن",
+  RANDOM: "عشوائي",
+};
+
+export const CAMPAIGN_CTA_STYLE_AR: Record<string, string> = {
+  PRIMARY: "أساسي",
+  SECONDARY: "ثانوي",
+  OUTLINE: "إطار",
+  TEXT: "نص",
+  PILL: "حبة",
+};
+
+export const CAMPAIGN_TEXT_ALIGN_AR: Record<string, string> = {
+  START: "بداية",
+  CENTER: "وسط",
+  END: "نهاية",
 };
 
 export const COUPON_APPLICABILITY_AR: Record<string, string> = {

@@ -246,7 +246,59 @@ export type CampaignDestinationType =
   | "PRODUCT"
   | "COUPON"
   | "CART"
-  | "NONE";
+  | "NONE"
+  | "CHECKOUT"
+  | "ORDERS"
+  | "SEARCH"
+  | "EXTERNAL_URL"
+  | "INTERNAL_ROUTE";
+
+export type CampaignPlacement =
+  | "HOME_HERO"
+  | "HOME_SLIDER"
+  | "HOME_STRIP"
+  | "HOME_CATEGORY_STRIP"
+  | "HOME_MIDDLE"
+  | "HOME_BOTTOM"
+  | "CATEGORY_TOP"
+  | "CATEGORY_INLINE"
+  | "PRODUCT_TOP"
+  | "PRODUCT_AFTER_IMAGES"
+  | "PRODUCT_BEFORE_DESCRIPTION"
+  | "PRODUCT_BOTTOM"
+  | "OFFERS_TOP"
+  | "SEARCH_TOP"
+  | "CART_TOP"
+  | "CART_BOTTOM"
+  | "CHECKOUT_TOP"
+  | "CHECKOUT_BOTTOM"
+  | "ORDER_SUCCESS";
+
+export type CampaignLayout =
+  | "HERO_BANNER"
+  | "SMALL_BANNER"
+  | "STRIP_BANNER"
+  | "SQUARE_CARD"
+  | "POPUP"
+  | "COUPON_CARD"
+  | "FLOATING_BANNER"
+  | "FLASH_SALE_CARD";
+
+export type CampaignAudience = "ALL" | "GUEST_ONLY" | "LOGGED_IN_ONLY";
+
+export type CampaignFrequency =
+  | "ALWAYS"
+  | "ONCE"
+  | "DAILY"
+  | "EVERY_LAUNCH"
+  | "EVERY_SESSION"
+  | "DISMISS_HOURS";
+
+export type CampaignRotationMode = "PRIORITY" | "WEIGHT" | "RANDOM";
+
+export type CampaignCtaStyle = "PRIMARY" | "SECONDARY" | "OUTLINE" | "TEXT" | "PILL";
+
+export type CampaignTextAlign = "START" | "CENTER" | "END";
 
 export interface Campaign {
   id: string;
@@ -255,17 +307,79 @@ export interface Campaign {
   subtitleAr: string | null;
   subtitleEn: string | null;
   imageUrl: string | null;
+  iconUrl?: string | null;
   imagePath?: string | null;
+  iconPath?: string | null;
   isActive: boolean;
   startsAt: string;
   endsAt: string;
   sortOrder: number;
+  priority: number;
+  weight: number;
+  rotationMode: CampaignRotationMode;
+  maxImpressions: number | null;
+  maxClicks: number | null;
+  layout: CampaignLayout;
+  placements: CampaignPlacement[];
+  audience: CampaignAudience;
+  frequency: CampaignFrequency;
+  dismissHours: number | null;
+  targetCities: string[];
+  targetBranchIds: string[];
+  targetCategoryIds: string[];
+  targetProductIds: string[];
+  targetOfferIds: string[];
+  targetCouponIds: string[];
+  minCartAmount: number | null;
+  maxCartAmount: number | null;
+  backgroundColor: string | null;
+  gradientFrom: string | null;
+  gradientTo: string | null;
+  badgeTextAr: string | null;
+  badgeTextEn: string | null;
+  discountBadgeAr: string | null;
+  discountBadgeEn: string | null;
+  ctaStyle: CampaignCtaStyle;
+  textAlign: CampaignTextAlign;
+  overlayOpacity: number | null;
+  cornerRadius: number | null;
   destinationType: CampaignDestinationType;
   destinationId: string | null;
+  destinationUrl: string | null;
+  destinationRoute: string | null;
+  autoApplyCoupon: boolean;
   buttonLabelAr: string | null;
   buttonLabelEn: string | null;
+  impressionCount: number;
+  clickCount: number;
+  ctr: number;
+  lastViewedAt: string | null;
+  lastClickedAt: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface CampaignAnalyticsSummary {
+  totals: {
+    impressions: number;
+    clicks: number;
+    ctr: number;
+    campaigns: number;
+  };
+  items: Array<{
+    id: string;
+    titleAr: string;
+    titleEn: string;
+    isActive: boolean;
+    placements: CampaignPlacement[];
+    impressionCount: number;
+    clickCount: number;
+    ctr: number;
+    lastViewedAt: string | null;
+    lastClickedAt: string | null;
+    startsAt: string;
+    endsAt: string;
+  }>;
 }
 
 export type CouponApplicability = "ALL" | "DELIVERY_ONLY" | "PICKUP_ONLY";

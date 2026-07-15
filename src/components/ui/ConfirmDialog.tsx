@@ -33,10 +33,20 @@ export function ConfirmDialog({
       size="sm"
       footer={
         <>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={onClose}
+            disabled={isLoading}
+          >
             {cancelLabel}
           </Button>
-          <Button variant={variant} onClick={onConfirm} isLoading={isLoading}>
+          <Button
+            variant={variant}
+            className="w-full sm:w-auto"
+            onClick={onConfirm}
+            isLoading={isLoading}
+          >
             {confirmLabel}
           </Button>
         </>
