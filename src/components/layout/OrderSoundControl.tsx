@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Volume2, VolumeX } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { Volume2, VolumeX, X } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import {
   activateOrderSounds,
@@ -17,13 +18,16 @@ import {
   requestBrowserNotificationPermission,
 } from "@/lib/realtime/browserOrderNotifications";
 import { cn } from "@/lib/utils/cn";
+import { COMMON_AR } from "@/lib/ar/labels";
 
 export function OrderSoundControl() {
   const { isAuthenticated } = useAuth();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState(() => getSoundUiState());
   const [notifyPerm, setNotifyPerm] = useState<NotificationPermission | "unsupported">("default");
   const [, bump] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -39,12 +43,44 @@ export function OrderSoundControl() {
     if (open) setNotifyPerm(getBrowserNotificationPermission());
   }, [open]);
 
+  // Close on logout
+  useEffect(() => {
+    if (!isAuthenticated) setOpen(false);
+  }, [isAuthenticated]);
+
+  // Close on route change
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Outside click + Escape
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target || rootRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   if (!isAuthenticated) return null;
 
   const needsActivation = !state.unlockedThisSession;
 
   return (
-    <div className="relative flex items-center gap-1">
+    <div ref={rootRef} className="relative flex items-center gap-1">
       {needsActivation && (
         <button
           type="button"
@@ -59,24 +95,34 @@ export function OrderSoundControl() {
 
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
         className={cn(
-          "relative flex size-10 items-center justify-center rounded-full transition",
+          "relative z-10 flex size-10 items-center justify-center rounded-full transition",
           state.enabled && state.unlockedThisSession
             ? "text-amber-700 hover:bg-amber-50"
             : "text-charcoal-soft hover:bg-cream hover:text-charcoal",
         )}
         title="صوت الطلبات"
         aria-label="صوت الطلبات"
+        aria-expanded={open}
+        aria-haspopup="dialog"
       >
         {state.enabled ? <Volume2 className="size-5" /> : <VolumeX className="size-5" />}
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute end-0 z-40 mt-2 w-72 overflow-hidden rounded-xl border border-border-soft bg-surface shadow-lg">
-            <div className="border-b border-border-soft px-4 py-3">
+        <div
+          role="dialog"
+          aria-label="صوت الطلبات"
+          className="absolute end-0 z-40 mt-2 w-72 overflow-hidden rounded-xl border border-border-soft bg-surface shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-2 border-b border-border-soft px-4 py-3">
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-charcoal">صوت الطلبات</p>
               <p className="mt-0.5 text-xs text-charcoal-soft">
                 {state.unlockedThisSession
@@ -86,78 +132,90 @@ export function OrderSoundControl() {
                   : "يلزم تفاعل لتفعيل الصوت في المتصفح"}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+              }}
+              className="flex size-8 shrink-0 items-center justify-center rounded-full text-charcoal-soft transition hover:bg-cream hover:text-charcoal"
+              title={COMMON_AR.close}
+              aria-label={COMMON_AR.close}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
 
-            <div className="space-y-2 p-3">
-              {needsActivation ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void activateOrderSounds().then(() => setState(getSoundUiState()));
-                  }}
-                  className="flex w-full items-center justify-center rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-charcoal transition hover:bg-amber-400"
-                >
-                  تفعيل الصوت
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOrderSoundEnabled(!state.enabled);
-                    setState(getSoundUiState());
-                  }}
-                  className="flex w-full items-center justify-center rounded-lg border border-border-soft px-3 py-2 text-sm font-medium text-charcoal transition hover:bg-cream"
-                >
-                  {state.enabled ? "إيقاف الصوت" : "تفعيل الصوت"}
-                </button>
-              )}
-
+          <div className="space-y-2 p-3">
+            {needsActivation ? (
               <button
                 type="button"
                 onClick={() => {
-                  void playTestOrderSound().then(() => setState(getSoundUiState()));
+                  void activateOrderSounds().then(() => setState(getSoundUiState()));
+                }}
+                className="flex w-full items-center justify-center rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-charcoal transition hover:bg-amber-400"
+              >
+                تفعيل الصوت
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderSoundEnabled(!state.enabled);
+                  setState(getSoundUiState());
+                }}
+                className="flex w-full items-center justify-center rounded-lg border border-border-soft px-3 py-2 text-sm font-medium text-charcoal transition hover:bg-cream"
+              >
+                {state.enabled ? "إيقاف الصوت" : "تفعيل الصوت"}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                void playTestOrderSound().then(() => setState(getSoundUiState()));
+              }}
+              className="flex w-full items-center justify-center rounded-lg border border-border-soft px-3 py-2 text-sm text-charcoal-soft transition hover:bg-cream hover:text-charcoal"
+            >
+              اختبار الصوت
+            </button>
+
+            <div className="rounded-lg border border-border-soft px-3 py-2">
+              <div className="mb-1.5 flex items-center justify-between text-xs text-charcoal-soft">
+                <span>مستوى الصوت</span>
+                <span className="ltr-field">{Math.round(state.volume * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(state.volume * 100)}
+                onChange={(e) => {
+                  setOrderSoundVolume(Number(e.target.value) / 100);
+                  setState(getSoundUiState());
+                }}
+                className="w-full accent-amber-500"
+                aria-label="مستوى الصوت"
+              />
+            </div>
+
+            {notifyPerm !== "unsupported" && notifyPerm !== "granted" && (
+              <button
+                type="button"
+                onClick={() => {
+                  void requestBrowserNotificationPermission().then(setNotifyPerm);
                 }}
                 className="flex w-full items-center justify-center rounded-lg border border-border-soft px-3 py-2 text-sm text-charcoal-soft transition hover:bg-cream hover:text-charcoal"
               >
-                اختبار الصوت
+                تفعيل إشعارات المتصفح
               </button>
+            )}
 
-              <div className="rounded-lg border border-border-soft px-3 py-2">
-                <div className="mb-1.5 flex items-center justify-between text-xs text-charcoal-soft">
-                  <span>مستوى الصوت</span>
-                  <span className="ltr-field">{Math.round(state.volume * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={Math.round(state.volume * 100)}
-                  onChange={(e) => {
-                    setOrderSoundVolume(Number(e.target.value) / 100);
-                    setState(getSoundUiState());
-                  }}
-                  className="w-full accent-amber-500"
-                  aria-label="مستوى الصوت"
-                />
-              </div>
-
-              {notifyPerm !== "unsupported" && notifyPerm !== "granted" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void requestBrowserNotificationPermission().then(setNotifyPerm);
-                  }}
-                  className="flex w-full items-center justify-center rounded-lg border border-border-soft px-3 py-2 text-sm text-charcoal-soft transition hover:bg-cream hover:text-charcoal"
-                >
-                  تفعيل إشعارات المتصفح
-                </button>
-              )}
-
-              {notifyPerm === "granted" && (
-                <p className="px-1 text-xs text-success">إشعارات المتصفح مفعّلة للطلبات الجديدة في الخلفية</p>
-              )}
-            </div>
+            {notifyPerm === "granted" && (
+              <p className="px-1 text-xs text-success">إشعارات المتصفح مفعّلة للطلبات الجديدة في الخلفية</p>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
