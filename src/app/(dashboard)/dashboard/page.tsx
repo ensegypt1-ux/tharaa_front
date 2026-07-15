@@ -152,7 +152,28 @@ export default function DashboardOverviewPage() {
             />
             <StatCard label="العروض النشطة" value={formatNumber(summary.activeOffers)} icon={Tag} href="/offers" />
             <StatCard label="الكوبونات النشطة" value={formatNumber(summary.activeCoupons)} icon={Ticket} href="/coupons" />
-            <StatCard label="التقييمات المعلقة" value={formatNumber(summary.pendingReviews)} icon={Star} tone="amber" href="/reviews" />
+            <StatCard label="التقييمات المعلقة" value={formatNumber(summary.pendingReviews)} icon={Star} tone="amber" href="/reviews?status=PENDING&tab=reviews" />
+            <StatCard
+              label="التقييمات المبلغ عنها"
+              value={ops.isLoading ? "…" : formatNumber(ops.reportedReviews)}
+              icon={Star}
+              tone="red"
+              href="/reviews?tab=reports&reportStatus=OPEN"
+            />
+            <StatCard
+              label="متوسط وقت المراجعة"
+              value={
+                ops.isLoading
+                  ? "…"
+                  : ops.averageModerationTimeMinutes != null
+                    ? `${formatNumber(ops.averageModerationTimeMinutes)} د`
+                    : "—"
+              }
+              icon={Star}
+              tone="info"
+              href="/reviews?tab=reviews"
+              hint="بالدقائق"
+            />
           </>
         )}
       </div>

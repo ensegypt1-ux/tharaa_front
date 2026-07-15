@@ -334,6 +334,9 @@ export interface CustomerDetail {
     createdAt: string;
     product: { id: string; nameAr: string; nameEn: string };
     orderId?: string;
+    replyText?: string | null;
+    repliedAt?: string | null;
+    openReportCount?: number;
   }[];
   notifications: {
     id: string;
@@ -413,6 +416,13 @@ export interface CustomerOrderRow {
 }
 
 export type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type ReviewReportStatus = "OPEN" | "RESOLVED" | "DISMISSED";
+export type ReviewSort = "newest" | "oldest" | "highest" | "lowest";
+
+export interface ReviewStoreReply {
+  text: string;
+  repliedAt: string;
+}
 
 export interface Review {
   id: string;
@@ -423,11 +433,63 @@ export interface Review {
   comment: string | null;
   status: ReviewStatus;
   isVisible: boolean;
+  replyText?: string | null;
+  replyByUserId?: string | null;
+  repliedAt?: string | null;
+  moderatedAt?: string | null;
+  moderatedById?: string | null;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  openReportCount?: number;
   user?: { id: string; fullName: string; email: string | null; phone: string | null };
   product?: { id: string; nameAr: string; nameEn: string };
   orderItem?: { id: string; orderId: string };
+  replyByUser?: { id: string; fullName: string; email: string | null } | null;
+  moderatedBy?: { id: string; fullName: string; email: string | null } | null;
+  storeReply?: ReviewStoreReply | null;
+}
+
+export interface ReviewAdminStats {
+  pending: number;
+  approved: number;
+  rejected: number;
+  hidden: number;
+  reported: number;
+  averageModerationTimeMinutes: number | null;
+}
+
+export interface ReviewReport {
+  id: string;
+  reviewId: string;
+  reporterId: string;
+  reason: string;
+  status: ReviewReportStatus;
+  resolutionNote: string | null;
+  resolvedAt: string | null;
+  resolvedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  reporter?: { id: string; fullName: string; email: string | null; phone: string | null };
+  resolvedBy?: { id: string; fullName: string; email: string | null } | null;
+  review?: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    status: ReviewStatus;
+    isVisible: boolean;
+    productId: string;
+    product?: { id: string; nameAr: string; nameEn: string };
+    user?: { id: string; fullName: string; email: string | null };
+  };
+}
+
+export interface ProductReviewStats {
+  productId: string;
+  ratingAverage: number;
+  ratingCount: number;
+  verifiedPurchaseCount: number;
+  histogram: { rating: number; count: number; percentage: number }[];
 }
 
 export type NotificationType = "ORDER_STATUS" | "OFFER" | "ADMIN" | "SYSTEM";

@@ -27,7 +27,6 @@ import {
   MapPin,
   Phone,
   Send,
-  Star,
 } from "lucide-react";
 import { RequireRole } from "@/components/layout/RequireRole";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -38,12 +37,13 @@ import { Input, Label, Select, Textarea, FieldError } from "@/components/ui/Inpu
 import { Modal } from "@/components/ui/Modal";
 import { Pagination } from "@/components/ui/Pagination";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
-import { AccountStatusBadge, OrderStatusBadge, Badge } from "@/components/ui/StatusBadge";
+import { AccountStatusBadge, OrderStatusBadge, Badge, BooleanBadge } from "@/components/ui/StatusBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { IconButton } from "@/components/ui/IconButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState, LoadingState } from "@/components/ui/LoadingState";
+import { RatingStars } from "@/components/reviews/RatingStars";
 import {
   getCustomer,
   getCustomerAnalytics,
@@ -603,16 +603,19 @@ function CustomerDetailInner({ id }: { id: string }) {
                           <Link href={`/products/${r.product.id}`} className="text-sm font-medium text-charcoal hover:text-amber-800">
                             {r.product.nameAr || r.product.nameEn}
                           </Link>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Badge tone="amber">{labelOf(REVIEW_STATUS_AR, r.status)}</Badge>
-                            <div className="flex items-center gap-0.5 text-amber-500">
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <Star key={i} className="size-3.5" fill={i < r.rating ? "currentColor" : "none"} />
-                              ))}
-                            </div>
+                            <BooleanBadge value={r.isVisible} trueLabel="مرئي" falseLabel="مخفي" />
+                            {(r.openReportCount ?? 0) > 0 && <Badge tone="red">مبلّغ</Badge>}
+                            <RatingStars rating={r.rating} size="sm" showValue />
                           </div>
                         </div>
                         {r.comment && <p className="mt-1 text-sm text-charcoal-soft">{r.comment}</p>}
+                        {r.replyText && (
+                          <p className="mt-1 rounded-md bg-cream/70 px-2 py-1 text-xs text-charcoal">
+                            رد المتجر: {r.replyText}
+                          </p>
+                        )}
                         <div className="mt-1 flex flex-wrap gap-3 text-xs text-charcoal-soft">
                           <span>{formatDateTime(r.createdAt)}</span>
                           {r.orderId && (
@@ -620,6 +623,12 @@ function CustomerDetailInner({ id }: { id: string }) {
                               الطلب المرتبط
                             </Link>
                           )}
+                          <Link
+                            href={`/reviews?reviewId=${r.id}&userId=${id}&tab=reviews`}
+                            className="text-amber-800 hover:underline"
+                          >
+                            فتح التفاصيل
+                          </Link>
                         </div>
                       </li>
                     ))}

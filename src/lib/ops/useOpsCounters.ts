@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getAnalyticsOverview } from "@/lib/api/analytics";
 import { listMissingImages } from "@/lib/api/productImages";
+import { getReviewAdminStats } from "@/lib/api/reviews";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { canAccess } from "@/lib/auth/roles";
 
@@ -27,14 +28,28 @@ export function useOpsCounters() {
     staleTime: 60_000,
   });
 
+  const reviewStatsQuery = useQuery({
+    queryKey: ["review-admin-stats"],
+    queryFn: getReviewAdminStats,
+    enabled: canReviews,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
   const summary = overviewQuery.data?.summary;
 
   return {
     pendingOrders: summary?.pendingOrders ?? 0,
     preparingOrders: summary?.preparingOrders ?? 0,
     readyOrders: summary?.readyOrders ?? 0,
-    pendingReviews: canReviews ? (summary?.pendingReviews ?? 0) : 0,
+    pendingReviews: canReviews
+      ? (reviewStatsQuery.data?.pending ?? summary?.pendingReviews ?? 0)
+      : 0,
+    reportedReviews: canReviews ? (reviewStatsQuery.data?.reported ?? 0) : 0,
+    averageModerationTimeMinutes: canReviews
+      ? (reviewStatsQuery.data?.averageModerationTimeMinutes ?? null)
+      : null,
     missingImages: canMissing ? (missingQuery.data?.meta.total ?? 0) : 0,
-    isLoading: overviewQuery.isLoading || missingQuery.isLoading,
+    isLoading: overviewQuery.isLoading || missingQuery.isLoading || reviewStatsQuery.isLoading,
   };
 }

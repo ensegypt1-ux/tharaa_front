@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { z } from "zod";
@@ -27,6 +28,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
 import { ErrorState, LoadingState } from "@/components/ui/LoadingState";
 import { ImageSearchModal } from "@/components/images/ImageSearchModal";
+import { RatingStars } from "@/components/reviews/RatingStars";
 import { listCategories } from "@/lib/api/categories";
 import {
   createVariant,
@@ -40,6 +42,7 @@ import {
   uploadProductImage,
   type VariantPayload,
 } from "@/lib/api/products";
+import { getProductReviewStats, listReviews } from "@/lib/api/reviews";
 import { getErrorMessage } from "@/lib/api/errors";
 import { formatCurrency, formatNumber } from "@/lib/utils/format";
 import type { ProductVariant } from "@/lib/types";
@@ -88,6 +91,22 @@ function ProductDetailInner({ id }: { id: string }) {
 
   const productQuery = useQuery({ queryKey: ["product", id], queryFn: () => getProduct(id) });
   const categoriesQuery = useQuery({ queryKey: ["categories"], queryFn: listCategories });
+  const reviewStatsQuery = useQuery({
+    queryKey: ["product-review-stats", id],
+    queryFn: () => getProductReviewStats(id),
+    enabled: Boolean(id),
+  });
+  const pendingReviewsQuery = useQuery({
+    queryKey: ["reviews", { productId: id, status: "PENDING", page: 1 }],
+    queryFn: () => listReviews({ productId: id, status: "PENDING", page: 1, limit: 1 }),
+    enabled: Boolean(id),
+  });
+  const latestReviewsQuery = useQuery({
+    queryKey: ["reviews", { productId: id, status: "APPROVED", sort: "newest", page: 1 }],
+    queryFn: () =>
+      listReviews({ productId: id, status: "APPROVED", sort: "newest", page: 1, limit: 5 }),
+    enabled: Boolean(id),
+  });
 
   const {
     register,
@@ -527,13 +546,96 @@ function ProductDetailInner({ id }: { id: string }) {
 
           <Card>
             <CardHeader>
-              <CardTitle>التقييمات</CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle>التقييمات</CardTitle>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/reviews?productId=${product.id}&tab=reviews`)}
+                >
+                  فتح في التقييمات
+                </Button>
+              </div>
             </CardHeader>
-            <CardBody className="text-sm text-charcoal-soft">
-              <p>
-                <span className="text-lg font-semibold text-charcoal">{product.ratingAverage.toFixed(1)}</span> / 5 المتوسط
-              </p>
-              <p>{formatNumber(product.ratingCount)} تقييم معتمد</p>
+            <CardBody className="space-y-4 text-sm text-charcoal-soft">
+              <div className="flex flex-wrap items-end gap-4">
+                <div>
+                  <p className="mb-1 text-xs text-charcoal-soft">المتوسط</p>
+                  <RatingStars
+                    rating={product.ratingAverage}
+                    size="lg"
+                    showValue
+                    showCount
+                    count={product.ratingCount}
+                  />
+                </div>
+                <div>
+                  <p className="text-xs text-charcoal-soft">عدد التقييمات المعتمدة</p>
+                  <p className="text-lg font-semibold text-charcoal">{formatNumber(product.ratingCount)}</p>
+                </div>
+                {reviewStatsQuery.data && (
+                  <div>
+                    <p className="text-xs text-charcoal-soft">شراء موثق</p>
+                    <p className="text-lg font-semibold text-charcoal">
+                      {formatNumber(reviewStatsQuery.data.verifiedPurchaseCount)}
+                    </p>
+                  </div>
+                )}
+                {pendingReviewsQuery.data && (
+                  <div>
+                    <p className="text-xs text-charcoal-soft">معلّقة لهذا المنتج</p>
+                    <p className="text-lg font-semibold text-amber-800">
+                      {formatNumber(pendingReviewsQuery.data.meta.total)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {reviewStatsQuery.isLoading && <p>جارٍ تحميل الإحصائيات…</p>}
+              {reviewStatsQuery.data && (
+                <div className="space-y-1.5">
+                  {reviewStatsQuery.data.histogram.map((row) => (
+                    <div key={row.rating} className="flex items-center gap-2">
+                      <RatingStars rating={row.rating} size="sm" showValue={false} />
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-cream">
+                        <div
+                          className="h-full rounded-full bg-amber-400"
+                          style={{ width: `${Math.max(row.percentage, row.count > 0 ? 4 : 0)}%` }}
+                        />
+                      </div>
+                      <span className="w-16 text-end text-xs text-charcoal-soft ltr-field">
+                        {row.count} ({row.percentage}%)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {latestReviewsQuery.data && latestReviewsQuery.data.items.length > 0 && (
+                <div className="space-y-2 border-t border-border-soft pt-3">
+                  <p className="text-xs font-semibold text-charcoal">أحدث التقييمات</p>
+                  <ul className="space-y-2">
+                    {latestReviewsQuery.data.items.slice(0, 5).map((r) => (
+                      <li key={r.id} className="rounded-md border border-border-soft px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-charcoal">{r.user?.fullName ?? "عميل"}</span>
+                          <RatingStars rating={r.rating} size="sm" showValue />
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs text-charcoal-soft">
+                          {r.comment?.trim() || "بدون تعليق"}
+                        </p>
+                        <Link
+                          href={`/reviews?reviewId=${r.id}&productId=${product.id}&tab=reviews`}
+                          className="mt-1 inline-block text-xs text-amber-800 hover:underline"
+                        >
+                          التفاصيل
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </CardBody>
           </Card>
         </div>
