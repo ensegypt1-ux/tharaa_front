@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Eye, Search, ShoppingCart, X } from "lucide-react";
+import { Check, Copy, Eye, MapPin, Search, ShoppingCart, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -34,6 +34,11 @@ import {
   nextOperationalStatus,
 } from "@/lib/orders/transitions";
 import { getErrorMessage } from "@/lib/api/errors";
+import {
+  canOpenDeliveryMaps,
+  parseAddressSnapshot,
+  resolveMapsUrl,
+} from "@/lib/orders/deliveryLocation";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea, Label, FieldError } from "@/components/ui/Input";
 
@@ -169,7 +174,25 @@ function OrdersPageInner() {
     {
       key: "fulfilment",
       header: "التوصيل / الاستلام",
-      render: (o) => <span className="text-sm">{labelOf(FULFILMENT_AR, o.fulfilmentType)}</span>,
+      render: (o) => (
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{labelOf(FULFILMENT_AR, o.fulfilmentType)}</span>
+          {canOpenDeliveryMaps(o.fulfilmentType, o.mapsUrl, parseAddressSnapshot(o.addressSnapshot)) && (
+            <IconButton
+              label="فتح موقع التوصيل في خرائط Google"
+              size="sm"
+              tone="amber"
+              onClick={(e) => {
+                e.stopPropagation();
+                const url = resolveMapsUrl(o.mapsUrl, parseAddressSnapshot(o.addressSnapshot));
+                if (url) window.open(url, "_blank", "noopener,noreferrer");
+              }}
+            >
+              <MapPin className="size-3.5" />
+            </IconButton>
+          )}
+        </div>
+      ),
     },
     {
       key: "payment",

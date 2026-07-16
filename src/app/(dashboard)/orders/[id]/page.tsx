@@ -7,7 +7,6 @@ import {
   Boxes,
   Check,
   Copy,
-  MapPin,
   Printer,
   Store,
   User as UserIcon,
@@ -22,6 +21,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { IconButton } from "@/components/ui/IconButton";
 import { OrderStatusBadge, Badge } from "@/components/ui/StatusBadge";
 import { ErrorState, LoadingState } from "@/components/ui/LoadingState";
+import { DeliveryLocationSection } from "@/components/orders/DeliveryLocationSection";
 import { getOrder, getOrderPrint, updateOrderStatus } from "@/lib/api/orders";
 import { listInventoryMovements } from "@/lib/api/inventory";
 import { canCancelOrder } from "@/lib/auth/roles";
@@ -30,6 +30,11 @@ import { formatCurrency, formatDateTime } from "@/lib/utils/format";
 import { getErrorMessage } from "@/lib/api/errors";
 import type { OrderStatus } from "@/lib/types";
 import { COMMON_AR, ORDER_STATUS_AR, FULFILMENT_AR, PAYMENT_AR, INVENTORY_MOVEMENT_TYPE_AR, labelOf } from "@/lib/ar/labels";
+import {
+  formatCoordinatesLabel,
+  parseAddressSnapshot,
+  resolveMapsUrl,
+} from "@/lib/orders/deliveryLocation";
 
 function CopyButton({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -199,6 +204,25 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           .join("");
 
         // Empty <title> + @page margin:0 removes browser header/footer (title + URL).
+        const deliveryAddress =
+          printable.fulfilmentType === "DELIVERY" ? parseAddressSnapshot(printable.address) : null;
+        const deliveryMapsUrl = deliveryAddress ? resolveMapsUrl(null, deliveryAddress) : null;
+        const deliveryCoords = deliveryAddress ? formatCoordinatesLabel(deliveryAddress) : null;
+        const deliveryAddressHtml =
+          printable.fulfilmentType === "DELIVERY" && deliveryAddress
+            ? `<div class="delivery">
+                <p class="meta"><strong>عنوان التوصيل:</strong> ${
+                  deliveryAddress.formattedAddress?.trim() ||
+                  [deliveryAddress.district, deliveryAddress.street, deliveryAddress.building, deliveryAddress.floor, deliveryAddress.apartment]
+                    .filter(Boolean)
+                    .join("، ") ||
+                  "—"
+                }</p>
+                ${deliveryMapsUrl ? `<p class="meta"><strong>خرائط Google:</strong> ${deliveryMapsUrl}</p>` : ""}
+                ${deliveryCoords ? `<p class="meta"><strong>الإحداثيات:</strong> ${deliveryCoords}</p>` : ""}
+              </div>`
+            : "";
+
         const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title></title>
           <style>
             @page { margin: 0; size: auto; }
@@ -208,12 +232,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}
             th,td{border-bottom:1px solid #e5e0d8;padding:8px;text-align:right}
             .meta{font-size:13px;color:#5c5349;margin:4px 0}
+            .delivery{margin:8px 0 0;padding-top:8px;border-top:1px solid #e5e0d8}
             .total{margin-top:16px;font-size:16px;font-weight:700;text-align:left}
           </style></head><body>
           <h1>سوق ثراء — فاتورة</h1>
           <p class="meta">الطلب ${printable.orderNumber} · ${formatDateTime(printable.createdAt)}</p>
           <p class="meta">الحالة: ${labelOf(ORDER_STATUS_AR, printable.status)} · ${labelOf(FULFILMENT_AR, printable.fulfilmentType)}</p>
           <p class="meta">العميل: ${printable.customer.fullName}${printable.customer.phone ? ` (${printable.customer.phone})` : ""}</p>
+          ${deliveryAddressHtml}
           <table><thead><tr><th>المنتج</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead><tbody>${itemsHtml}</tbody></table>
           <p class="total">الإجمالي: ${formatCurrency(printable.total)}</p>
           </body></html>`;
@@ -276,9 +302,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const nextStatuses = allowed.filter((s) => s !== "CANCELLED");
   const canCancel = canCancelOrder(user?.role) && allowed.includes("CANCELLED");
 
-  const address = order.addressSnapshot as
-    | { label?: string; recipientName?: string; phone?: string; city?: string; district?: string; street?: string; building?: string; floor?: string; apartment?: string; directions?: string }
-    | null;
+  const address = parseAddressSnapshot(order.addressSnapshot);
   const store = order.storeSnapshot as
     | {
         storeNameEn?: string;
@@ -528,43 +552,44 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             </CardBody>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{order.fulfilmentType === "DELIVERY" ? "عنوان التوصيل" : "موقع الاستلام"}</CardTitle>
-            </CardHeader>
-            <CardBody className="space-y-1.5 text-sm text-charcoal-soft">
-              {order.fulfilmentType === "DELIVERY" && address ? (
-                <div className="flex items-start gap-2">
-                  <MapPin className="mt-0.5 size-4 shrink-0" />
-                  <div>
-                    <p className="font-medium text-charcoal">{address.recipientName}</p>
-                    <p className="ltr-field">{address.phone}</p>
-                    <p>
-                      {[address.district, address.street, address.building, address.floor, address.apartment]
-                        .filter(Boolean)
-                        .join("، ")}
-                    </p>
-                    {address.directions && <p className="italic">{address.directions}</p>}
+          {order.fulfilmentType === "DELIVERY" ? (
+            address ? (
+              <DeliveryLocationSection address={address} mapsUrl={order.mapsUrl} />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>موقع التوصيل</CardTitle>
+                </CardHeader>
+                <CardBody>
+                  <p className="text-sm text-charcoal-soft">لا تتوفر تفاصيل عنوان التوصيل.</p>
+                </CardBody>
+              </Card>
+            )
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>موقع الاستلام</CardTitle>
+              </CardHeader>
+              <CardBody className="space-y-1.5 text-sm text-charcoal-soft">
+                {store ? (
+                  <div className="flex items-start gap-2">
+                    <Store className="mt-0.5 size-4 shrink-0" />
+                    <div>
+                      <p className="font-medium text-charcoal">{store.storeNameAr || store.storeNameEn}</p>
+                      <p>{store.addressAr || store.addressEn}</p>
+                      {store.estimatedMinutesMin != null && (
+                        <p>
+                          الجاهزية خلال {store.estimatedMinutesMin}–{store.estimatedMinutesMax} دقيقة
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : store ? (
-                <div className="flex items-start gap-2">
-                  <Store className="mt-0.5 size-4 shrink-0" />
-                  <div>
-                    <p className="font-medium text-charcoal">{store.storeNameAr || store.storeNameEn}</p>
-                    <p>{store.addressAr || store.addressEn}</p>
-                    {store.estimatedMinutesMin != null && (
-                      <p>
-                        الجاهزية خلال {store.estimatedMinutesMin}–{store.estimatedMinutesMax} دقيقة
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <p>لا تتوفر تفاصيل.</p>
-              )}
-            </CardBody>
-          </Card>
+                ) : (
+                  <p>لا تتوفر تفاصيل.</p>
+                )}
+              </CardBody>
+            </Card>
+          )}
 
           {coupon && (
             <Card>

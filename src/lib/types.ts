@@ -170,6 +170,7 @@ export interface Order {
   couponSnapshot: Record<string, unknown> | null;
   addressSnapshot: Record<string, unknown> | null;
   storeSnapshot: Record<string, unknown> | null;
+  mapsUrl?: string | null;
   customerNote: string | null;
   cancellationReason: string | null;
   cancelledAt: string | null;
@@ -790,6 +791,7 @@ export interface AnalyticsOverview {
   summary: {
     totalOrders: number;
     ordersToday: number;
+    ordersByStatus?: Partial<Record<OrderStatus, number>>;
     pendingOrders: number;
     confirmedOrders: number;
     preparingOrders: number;
@@ -798,9 +800,13 @@ export interface AnalyticsOverview {
     completedOrders: number;
     cancelledOrders: number;
     totalSales: number;
+    totalRevenue?: number;
     salesToday: number;
+    revenueToday?: number;
     salesThisWeek: number;
+    revenueThisWeek?: number;
     salesThisMonth: number;
+    revenueThisMonth?: number;
     averageOrderValue: number;
     ordersInRange: number;
     totalCustomers: number;
@@ -820,7 +826,9 @@ export interface AnalyticsCharts {
   dailySales: { date: string; orders: number; sales: number }[];
   weeklySales: { key: string; orders: number; sales: number }[];
   monthlySales: { key: string; orders: number; sales: number }[];
-  revenueByDay: { date: string; orders: number; sales: number }[];
+  revenueByDay?: { date: string; orders: number; sales: number }[];
+  revenueOverTime?: { date: string; orders: number; sales: number }[];
+  ordersOverTime?: { date: string; orders: number }[];
   ordersByStatus: { status: OrderStatus; count: number }[];
   ordersByFulfilment: { fulfilmentType: FulfilmentType; count: number; revenue: number }[];
   deliveryVersusPickup: { fulfilmentType: FulfilmentType; count: number }[];
@@ -829,4 +837,51 @@ export interface AnalyticsCharts {
   couponUsage: { date: string; usages: number; discount: number }[];
   newCustomersOverTime: { date: string; count: number }[];
   cancellationRate: number;
+}
+
+export type SearchAnalyticsSortBy = "count" | "lastSearchedAt";
+export type WishlistAnalyticsSortBy = "wishlistCount";
+export type AnalyticsSortDir = "asc" | "desc";
+
+export interface SearchAnalyticsTerm {
+  term: string;
+  count: number;
+  lastSearchedAt: string;
+  createdAt?: string;
+}
+
+export interface SearchAnalyticsResponse {
+  totals: {
+    totalSearches: number;
+    uniqueTerms: number;
+  };
+  recentSearches: Array<{
+    term: string;
+    count: number;
+    lastSearchedAt: string;
+  }>;
+  popularSearches: {
+    data: SearchAnalyticsTerm[];
+    meta: Meta;
+  };
+}
+
+export interface WishlistAnalyticsProduct {
+  productId: string;
+  nameAr: string;
+  nameEn: string;
+  isActive: boolean;
+  imageUrl: string | null;
+  wishlistCount: number;
+}
+
+export interface WishlistAnalyticsResponse {
+  totals: {
+    totalWishlistItems: number;
+    usersWithWishlist: number;
+  };
+  topWishlistedProducts: {
+    data: WishlistAnalyticsProduct[];
+    meta: Meta;
+  };
 }

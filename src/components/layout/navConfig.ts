@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   ShoppingCart,
+  Search,
   FolderTree,
   Package,
   Boxes,
@@ -28,6 +29,12 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { key: "overview", label: "نظرة عامة", href: "/dashboard", icon: LayoutDashboard },
   { key: "orders", label: "الطلبات", href: "/orders", icon: ShoppingCart },
+  {
+    key: "searchWishlistAnalytics",
+    label: "تحليلات البحث والمفضلة",
+    href: "/analytics/search-wishlist",
+    icon: Search,
+  },
   { key: "categories", label: "الأقسام", href: "/categories", icon: FolderTree },
   { key: "products", label: "المنتجات", href: "/products", icon: Package },
   { key: "inventory", label: "المخزون", href: "/inventory", icon: Boxes },

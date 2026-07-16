@@ -3,6 +3,7 @@ import type { UserRole } from "./types";
 export type NavKey =
   | "overview"
   | "orders"
+  | "searchWishlistAnalytics"
   | "categories"
   | "products"
   | "inventory"
@@ -22,6 +23,7 @@ const ROLE_ACCESS: Record<UserRole, NavKey[] | "all"> = {
   MANAGER: [
     "overview",
     "orders",
+    "searchWishlistAnalytics",
     "categories",
     "products",
     "inventory",
@@ -35,13 +37,14 @@ const ROLE_ACCESS: Record<UserRole, NavKey[] | "all"> = {
     "delivery",
     "activity",
   ],
-  EMPLOYEE: ["overview", "orders"],
+  EMPLOYEE: ["overview", "orders", "searchWishlistAnalytics"],
   CUSTOMER: [],
 };
 
 const ALL_NAV_KEYS: NavKey[] = [
   "overview",
   "orders",
+  "searchWishlistAnalytics",
   "categories",
   "products",
   "inventory",

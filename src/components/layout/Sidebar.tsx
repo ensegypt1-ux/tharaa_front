@@ -17,7 +17,7 @@ import {
 } from "@/lib/realtime/unreadOrdersTitle";
 
 const NAV_GROUPS: { title: string; keys: NavKey[] }[] = [
-  { title: "التشغيل", keys: ["overview", "orders"] },
+  { title: "التشغيل", keys: ["overview", "orders", "searchWishlistAnalytics"] },
   { title: "الكتالوج", keys: ["categories", "products", "inventory", "missingImages"] },
   { title: "التسويق", keys: ["offers", "coupons", "campaigns"] },
   { title: "العملاء", keys: ["customers", "reviews", "notifications"] },

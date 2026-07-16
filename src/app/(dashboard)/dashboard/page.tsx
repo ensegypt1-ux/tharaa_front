@@ -9,9 +9,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,42 +16,59 @@ import {
 } from "recharts";
 import {
   Banknote,
-  Boxes,
   ClipboardList,
-  Package,
   ShoppingCart,
-  Star,
-  Tag,
-  Ticket,
-  TriangleAlert,
+  TrendingUp,
   Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { DateRangeFilter, type DateRangeState } from "@/components/ui/DateRangeFilter";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { ErrorState } from "@/components/ui/LoadingState";
-import { getAnalyticsCharts, getAnalyticsOverview } from "@/lib/api/analytics";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/utils/format";
-import { useAuth } from "@/lib/auth/AuthProvider";
-import { useOpsCounters } from "@/lib/ops/useOpsCounters";
-import { COMMON_AR, FULFILMENT_AR, ORDER_STATUS_AR, labelOf } from "@/lib/ar/labels";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { getAnalyticsCharts, getAnalyticsOverview } from "@/lib/api/analytics";
+import type { OrderStatus } from "@/lib/types";
+import {
+  formatCurrency,
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  formatPercent,
+} from "@/lib/utils/format";
+import { COMMON_AR, ORDER_STATUS_AR, labelOf } from "@/lib/ar/labels";
 
-const CHART_COLORS = ["#f5a623", "#2a241d", "#3f7a4f", "#2f6fa8", "#c0442c", "#dd8a0e"];
+const CHART_COLORS = ["#f5a623", "#2a241d", "#3f7a4f", "#2f6fa8", "#c0442c", "#dd8a0e", "#8b6914"];
 
 function ChartSkeleton() {
   return (
     <div className="space-y-3 py-2" aria-hidden>
       <Skeleton className="h-3 w-28" />
-      <Skeleton className="h-[240px] w-full rounded-[var(--radius-md)]" />
+      <Skeleton className="h-[260px] w-full rounded-[var(--radius-md)]" />
     </div>
   );
 }
 
+function formatChartDate(value: string): string {
+  return formatDate(value, "d MMM");
+}
+
+function overviewStatusRows(
+  ordersByStatus?: Partial<Record<OrderStatus, number>>,
+): { status: OrderStatus; count: number; statusLabel: string }[] {
+  if (!ordersByStatus) return [];
+  return Object.entries(ordersByStatus)
+    .filter(([, count]) => (count ?? 0) > 0)
+    .map(([status, count]) => ({
+      status: status as OrderStatus,
+      count: count ?? 0,
+      statusLabel: labelOf(ORDER_STATUS_AR, status),
+    }));
+}
+
 export default function DashboardOverviewPage() {
-  const { user } = useAuth();
-  const ops = useOpsCounters();
   const [range, setRange] = useState<DateRangeState>({ range: "last30Days" });
 
   const queryParams = useMemo(
@@ -66,198 +80,299 @@ export default function DashboardOverviewPage() {
     [range],
   );
 
+  const rangeReady = range.range !== "custom" || Boolean(range.from && range.to);
+
   const overviewQuery = useQuery({
     queryKey: ["analytics-overview", queryParams],
     queryFn: () => getAnalyticsOverview(queryParams),
-    enabled: range.range !== "custom" || Boolean(range.from && range.to),
+    enabled: rangeReady,
   });
 
   const chartsQuery = useQuery({
     queryKey: ["analytics-charts", queryParams],
     queryFn: () => getAnalyticsCharts(queryParams),
-    enabled: range.range !== "custom" || Boolean(range.from && range.to),
+    enabled: rangeReady,
   });
 
   const summary = overviewQuery.data?.summary;
-  const firstName = user?.fullName?.split(" ")[0] ?? "";
+  const charts = chartsQuery.data;
 
-  const statusChartData = useMemo(
+  const revenueSeries = useMemo(() => {
+    const source =
+      charts?.revenueOverTime ?? charts?.revenueByDay ?? charts?.dailySales ?? [];
+    return source.map((row) => ({
+      date: row.date,
+      dateLabel: formatChartDate(row.date),
+      sales: row.sales,
+    }));
+  }, [charts]);
+
+  const ordersSeries = useMemo(() => {
+    const source =
+      charts?.ordersOverTime ??
+      charts?.dailySales?.map((d) => ({ date: d.date, orders: d.orders })) ??
+      [];
+    return source.map((row) => ({
+      date: row.date,
+      dateLabel: formatChartDate(row.date),
+      orders: row.orders,
+    }));
+  }, [charts]);
+
+  const statusChartData = useMemo(() => {
+    const fromOverview = overviewStatusRows(summary?.ordersByStatus);
+    if (fromOverview.length > 0) return fromOverview;
+    return (charts?.ordersByStatus ?? []).map((row) => ({
+      ...row,
+      statusLabel: labelOf(ORDER_STATUS_AR, row.status),
+    }));
+  }, [summary?.ordersByStatus, charts?.ordersByStatus]);
+
+  const newCustomersSeries = useMemo(
     () =>
-      (chartsQuery.data?.ordersByStatus ?? []).map((row) => ({
+      (charts?.newCustomersOverTime ?? []).map((row) => ({
         ...row,
-        statusLabel: labelOf(ORDER_STATUS_AR, row.status),
+        dateLabel: formatChartDate(row.date),
       })),
-    [chartsQuery.data?.ordersByStatus],
+    [charts?.newCustomersOverTime],
   );
 
-  const fulfilmentChartData = useMemo(
-    () =>
-      (chartsQuery.data?.deliveryVersusPickup ?? []).map((row) => ({
-        ...row,
-        name: labelOf(FULFILMENT_AR, row.fulfilmentType),
-      })),
-    [chartsQuery.data?.deliveryVersusPickup],
+  const productColumns: DataTableColumn<(typeof charts)["topSellingProducts"][number]> = useMemo(
+    () => [
+      {
+        key: "nameAr",
+        header: COMMON_AR.nameAr,
+        render: (row) => <span className="font-medium text-charcoal">{row.nameAr}</span>,
+      },
+      {
+        key: "nameEn",
+        header: COMMON_AR.nameEn,
+        render: (row) => <span className="text-sm text-charcoal-soft ltr-field">{row.nameEn}</span>,
+      },
+      {
+        key: "quantity",
+        header: "الكمية المباعة",
+        render: (row) => <span className="tabular-nums">{formatNumber(row.quantity)}</span>,
+      },
+      {
+        key: "revenue",
+        header: "الإيراد",
+        render: (row) => (
+          <span className="tabular-nums font-medium">{formatCurrency(row.revenue)}</span>
+        ),
+      },
+    ],
+    [],
   );
+
+  const categoryColumns: DataTableColumn<(typeof charts)["topCategories"][number]> = useMemo(
+    () => [
+      {
+        key: "nameAr",
+        header: COMMON_AR.nameAr,
+        render: (row) => <span className="font-medium text-charcoal">{row.nameAr}</span>,
+      },
+      {
+        key: "nameEn",
+        header: COMMON_AR.nameEn,
+        render: (row) => <span className="text-sm text-charcoal-soft ltr-field">{row.nameEn}</span>,
+      },
+      {
+        key: "quantity",
+        header: "الكمية المباعة",
+        render: (row) => <span className="tabular-nums">{formatNumber(row.quantity)}</span>,
+      },
+      {
+        key: "revenue",
+        header: "الإيراد",
+        render: (row) => (
+          <span className="tabular-nums font-medium">{formatCurrency(row.revenue)}</span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const rangeLabel =
+    overviewQuery.data?.range &&
+    `${formatDateTime(overviewQuery.data.range.from)} — ${formatDateTime(overviewQuery.data.range.to)}`;
+
+  const isLoading = overviewQuery.isLoading || chartsQuery.isLoading;
+  const hasError = overviewQuery.isError || chartsQuery.isError;
 
   return (
-    <div className="animate-in">
+    <div className="page-shell animate-in min-w-0 overflow-x-hidden">
       <PageHeader
-        title={`مرحبًا، ${firstName}`}
-        description="مركز عمليات سوق ثراء — ملخص الأداء للفترة المحددة."
+        title="لوحة التحليلات"
+        description={
+          rangeLabel
+            ? `ملخص الأداء للفترة: ${rangeLabel}`
+            : "ملخص الأداء التشغيلي والمالي للفترة المحددة."
+        }
         actions={<DateRangeFilter value={range} onChange={setRange} />}
       />
 
-      {overviewQuery.isError && (
-        <ErrorState message={COMMON_AR.loadFailed} onRetry={() => overviewQuery.refetch()} />
+      {!rangeReady && (
+        <Card className="mb-4">
+          <CardBody className="py-6 text-sm text-charcoal-soft">
+            اختر تاريخ البداية والنهاية للنطاق المخصص.
+          </CardBody>
+        </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-        {overviewQuery.isLoading &&
-          Array.from({ length: 23 }).map((_, i) => <StatCard key={i} label="…" value="" loading />)}
-        {summary && (
-          <>
-            <StatCard label="إجمالي الطلبات" value={formatNumber(summary.totalOrders)} icon={ShoppingCart} href="/orders" />
-            <StatCard label="طلبات اليوم" value={formatNumber(summary.ordersToday)} icon={ShoppingCart} href="/orders" />
-            <StatCard label="الطلبات المعلقة" value={formatNumber(summary.pendingOrders)} icon={ClipboardList} tone="amber" href="/orders?status=PENDING" />
-            <StatCard label="الطلبات المؤكدة" value={formatNumber(summary.confirmedOrders)} icon={ClipboardList} href="/orders?status=CONFIRMED" />
-            <StatCard label="قيد التجهيز" value={formatNumber(summary.preparingOrders)} icon={ClipboardList} href="/orders?status=PREPARING" />
-            <StatCard label="الجاهزة" value={formatNumber(summary.readyOrders)} icon={Package} href="/orders?status=READY" />
-            <StatCard label="خرجت للتوصيل" value={formatNumber(summary.outForDeliveryOrders)} icon={ShoppingCart} href="/orders?status=OUT_FOR_DELIVERY" />
-            <StatCard label="الطلبات المكتملة" value={formatNumber(summary.completedOrders)} icon={ClipboardList} tone="charcoal" href="/orders?status=COMPLETED" />
-            <StatCard label="الطلبات الملغاة" value={formatNumber(summary.cancelledOrders)} icon={TriangleAlert} tone="red" href="/orders?status=CANCELLED" />
-            <StatCard label="إجمالي المبيعات" value={formatCurrency(summary.totalSales)} icon={Banknote} />
-            <StatCard label="مبيعات اليوم" value={formatCurrency(summary.salesToday)} icon={Banknote} />
-            <StatCard label="مبيعات الأسبوع" value={formatCurrency(summary.salesThisWeek)} icon={Banknote} />
-            <StatCard label="مبيعات الشهر" value={formatCurrency(summary.salesThisMonth)} icon={Banknote} />
-            <StatCard label="متوسط قيمة الطلب" value={formatCurrency(summary.averageOrderValue)} icon={Banknote} />
-            <StatCard label="إجمالي العملاء" value={formatNumber(summary.totalCustomers)} icon={Users} href="/customers" />
-            <StatCard
-              label="العملاء الجدد"
-              value={formatNumber(summary.newCustomers ?? 0)}
-              icon={Users}
-              tone="green"
-              href="/customers"
-              hint="ضمن نطاق التحليلات المحدد"
-            />
-            <StatCard label="المنتجات النشطة" value={formatNumber(summary.activeProducts)} icon={Package} href="/products?isActive=true" />
-            <StatCard label="المنتجات غير المتوفرة" value={formatNumber(summary.outOfStockProducts)} icon={Boxes} tone="red" href="/inventory" />
-            <StatCard label="المنتجات منخفضة المخزون" value={formatNumber(summary.lowStockProducts)} icon={Boxes} tone="amber" href="/inventory" />
-            <StatCard
-              label="المنتجات بدون صور"
-              value={ops.isLoading ? "…" : formatNumber(ops.missingImages)}
-              icon={Package}
-              tone="amber"
-              href="/products/missing-images"
-              hint="من قائمة الصور الناقصة"
-            />
-            <StatCard label="العروض النشطة" value={formatNumber(summary.activeOffers)} icon={Tag} href="/offers" />
-            <StatCard label="الكوبونات النشطة" value={formatNumber(summary.activeCoupons)} icon={Ticket} href="/coupons" />
-            <StatCard label="التقييمات المعلقة" value={formatNumber(summary.pendingReviews)} icon={Star} tone="amber" href="/reviews?status=PENDING&tab=reviews" />
-            <StatCard
-              label="التقييمات المبلغ عنها"
-              value={ops.isLoading ? "…" : formatNumber(ops.reportedReviews)}
-              icon={Star}
-              tone="red"
-              href="/reviews?tab=reports&reportStatus=OPEN"
-            />
-            <StatCard
-              label="متوسط وقت المراجعة"
-              value={
-                ops.isLoading
-                  ? "…"
-                  : ops.averageModerationTimeMinutes != null
-                    ? `${formatNumber(ops.averageModerationTimeMinutes)} د`
-                    : "—"
-              }
-              icon={Star}
-              tone="info"
-              href="/reviews?tab=reviews"
-              hint="بالدقائق"
-            />
-          </>
-        )}
-      </div>
+      {hasError && (
+        <ErrorState
+          message={COMMON_AR.loadFailed}
+          onRetry={() => {
+            void overviewQuery.refetch();
+            void chartsQuery.refetch();
+          }}
+        />
+      )}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Summary cards */}
+      <section className="mb-6">
+        <h2 className="mb-3 text-base font-semibold text-charcoal">ملخص الفترة</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {isLoading &&
+            Array.from({ length: 8 }).map((_, i) => (
+              <StatCard key={i} label="…" value="" loading />
+            ))}
+          {summary && (
+            <>
+              <StatCard
+                label="إجمالي الإيراد للفترة"
+                value={formatCurrency(summary.totalRevenue ?? summary.totalSales)}
+                icon={Banknote}
+                hint="من الطلبات المكتملة ضمن النطاق"
+              />
+              <StatCard
+                label="الطلبات المكتملة في الفترة"
+                value={formatNumber(summary.ordersInRange)}
+                icon={ClipboardList}
+                hint="عدد الطلبات المكتملة ضمن النطاق"
+              />
+              <StatCard
+                label="متوسط قيمة الطلب"
+                value={formatCurrency(summary.averageOrderValue)}
+                icon={TrendingUp}
+              />
+              <StatCard
+                label="العملاء الجدد في الفترة"
+                value={formatNumber(summary.newCustomers)}
+                icon={Users}
+                tone="green"
+              />
+              <StatCard
+                label="طلبات اليوم"
+                value={formatNumber(summary.ordersToday)}
+                icon={ShoppingCart}
+              />
+              <StatCard
+                label="إيراد اليوم"
+                value={formatCurrency(summary.revenueToday ?? summary.salesToday)}
+                icon={Banknote}
+              />
+              <StatCard
+                label="إيراد هذا الأسبوع"
+                value={formatCurrency(summary.revenueThisWeek ?? summary.salesThisWeek)}
+                icon={Banknote}
+              />
+              <StatCard
+                label="إيراد هذا الشهر"
+                value={formatCurrency(summary.revenueThisMonth ?? summary.salesThisMonth)}
+                icon={Banknote}
+              />
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Revenue analytics */}
+      <section className="mb-6">
+        <h2 className="mb-3 text-base font-semibold text-charcoal">تحليلات الإيراد</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>الإيراد بمرور الوقت</CardTitle>
+          </CardHeader>
+          <CardBody>
+            {chartsQuery.isLoading ? (
+              <ChartSkeleton />
+            ) : chartsQuery.isError ? (
+              <ErrorState message="تعذر تحميل بيانات الإيراد." onRetry={() => chartsQuery.refetch()} />
+            ) : revenueSeries.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={revenueSeries}>
+                  <defs>
+                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f5a623" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#f5a623" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
+                  <XAxis
+                    dataKey="dateLabel"
+                    tick={{ fontSize: 11 }}
+                    interval="preserveStartEnd"
+                    minTickGap={24}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    width={88}
+                    orientation="right"
+                    tickFormatter={(v) => formatNumber(Number(v))}
+                  />
+                  <Tooltip
+                    formatter={(value) => formatCurrency(Number(value ?? 0))}
+                    labelFormatter={(_, payload) => {
+                      const row = payload?.[0]?.payload as { date?: string } | undefined;
+                      return row?.date ? formatDate(row.date) : "";
+                    }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid #ece3d3",
+                      fontFamily: "inherit",
+                      direction: "rtl",
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="sales"
+                    name="الإيراد"
+                    stroke="#dd8a0e"
+                    fill="url(#revenueGradient)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState title={COMMON_AR.noData} description="لا توجد مبيعات مكتملة في هذه الفترة." />
+            )}
+          </CardBody>
+        </Card>
+      </section>
+
+      {/* Orders analytics */}
+      <section className="mb-6">
+        <h2 className="mb-3 text-base font-semibold text-charcoal">تحليلات الطلبات</h2>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>المبيعات بمرور الوقت</CardTitle>
-              {chartsQuery.data && (
-                <span className="flex items-center gap-1 text-xs text-danger">
-                  <TriangleAlert className="size-3.5" />
-                  معدل الإلغاء: {formatPercent(chartsQuery.data.cancellationRate)}
+              <CardTitle>الطلبات بمرور الوقت</CardTitle>
+              {charts?.cancellationRate != null && (
+                <span className="text-xs text-charcoal-soft">
+                  معدل الإلغاء: {formatPercent(charts.cancellationRate)}
                 </span>
               )}
             </CardHeader>
             <CardBody>
               {chartsQuery.isLoading ? (
                 <ChartSkeleton />
-              ) : chartsQuery.data && chartsQuery.data.dailySales.length > 0 ? (
+              ) : chartsQuery.isError ? (
+                <ErrorState message="تعذر تحميل بيانات الطلبات." onRetry={() => chartsQuery.refetch()} />
+              ) : ordersSeries.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={chartsQuery.data.dailySales}>
-                    <defs>
-                      <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f5a623" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#f5a623" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => String(v).slice(5)} reversed={false} />
-                    <YAxis tick={{ fontSize: 11 }} width={80} tickFormatter={(v) => formatNumber(Number(v))} orientation="right" />
-                    <Tooltip
-                      formatter={(value) => formatCurrency(Number(value ?? 0))}
-                      labelStyle={{ color: "#2a241d", fontFamily: "inherit" }}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #ece3d3", fontFamily: "inherit" }}
-                    />
-                    <Area type="monotone" dataKey="sales" name="المبيعات" stroke="#dd8a0e" fill="url(#salesGradient)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>الطلبات حسب الحالة</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {chartsQuery.isLoading ? (
-                <ChartSkeleton />
-              ) : statusChartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={statusChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
-                    <XAxis dataKey="statusLabel" tick={{ fontSize: 10 }} interval={0} height={60} />
-                    <YAxis tick={{ fontSize: 11 }} width={40} orientation="right" />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid #ece3d3", fontFamily: "inherit" }}
-                      formatter={(value) => [formatNumber(Number(value ?? 0)), "العدد"]}
-                    />
-                    <Bar dataKey="count" name="العدد" radius={[6, 6, 0, 0]}>
-                      {statusChartData.map((_, idx) => (
-                        <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noOrders}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>الطلبات بمرور الوقت</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {chartsQuery.isLoading ? (
-                <ChartSkeleton />
-              ) : chartsQuery.data && chartsQuery.data.dailySales.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={chartsQuery.data.dailySales}>
+                  <AreaChart data={ordersSeries}>
                     <defs>
                       <linearGradient id="ordersGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#2a241d" stopOpacity={0.35} />
@@ -265,212 +380,199 @@ export default function DashboardOverviewPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => String(v).slice(5)} />
-                    <YAxis tick={{ fontSize: 11 }} width={40} orientation="right" />
+                    <XAxis
+                      dataKey="dateLabel"
+                      tick={{ fontSize: 11 }}
+                      interval="preserveStartEnd"
+                      minTickGap={24}
+                    />
+                    <YAxis tick={{ fontSize: 11 }} width={48} orientation="right" />
                     <Tooltip
                       formatter={(value) => [formatNumber(Number(value ?? 0)), "الطلبات"]}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #ece3d3", fontFamily: "inherit" }}
+                      labelFormatter={(_, payload) => {
+                        const row = payload?.[0]?.payload as { date?: string } | undefined;
+                        return row?.date ? formatDate(row.date) : "";
+                      }}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "1px solid #ece3d3",
+                        fontFamily: "inherit",
+                        direction: "rtl",
+                      }}
                     />
-                    <Area type="monotone" dataKey="orders" name="الطلبات" stroke="#2a241d" fill="url(#ordersGradient)" strokeWidth={2} />
+                    <Area
+                      type="monotone"
+                      dataKey="orders"
+                      name="الطلبات"
+                      stroke="#2a241d"
+                      fill="url(#ordersGradient)"
+                      strokeWidth={2}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noOrders}</p>
+                <EmptyState title={COMMON_AR.noOrders} />
               )}
             </CardBody>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>التوصيل مقابل الاستلام</CardTitle>
+              <CardTitle>توزيع الطلبات حسب الحالة</CardTitle>
+              {charts?.cancellationRate != null && (
+                <span className="text-xs text-charcoal-soft">
+                  معدل الإلغاء للفترة: {formatPercent(charts.cancellationRate)}
+                </span>
+              )}
             </CardHeader>
             <CardBody>
-              {fulfilmentChartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie
-                      data={fulfilmentChartData}
-                      dataKey="count"
-                      nameKey="name"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={3}
-                    >
-                      {fulfilmentChartData.map((_, idx) => (
+              {overviewQuery.isLoading && chartsQuery.isLoading ? (
+                <ChartSkeleton />
+              ) : statusChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={statusChartData} layout="vertical" margin={{ left: 8, right: 16 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      type="category"
+                      dataKey="statusLabel"
+                      tick={{ fontSize: 11 }}
+                      width={110}
+                    />
+                    <Tooltip
+                      formatter={(value) => [formatNumber(Number(value ?? 0)), "العدد"]}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "1px solid #ece3d3",
+                        fontFamily: "inherit",
+                        direction: "rtl",
+                      }}
+                    />
+                    <Bar dataKey="count" name="العدد" radius={[0, 6, 6, 0]}>
+                      {statusChartData.map((_, idx) => (
                         <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
                       ))}
-                    </Pie>
-                    <Legend />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid #ece3d3", fontFamily: "inherit" }}
-                      formatter={(value) => formatNumber(Number(value ?? 0))}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>المنتجات الأكثر مبيعًا</CardTitle>
-            </CardHeader>
-            <CardBody className="p-0">
-              {chartsQuery.data && chartsQuery.data.topSellingProducts.length > 0 ? (
-                <ul className="divide-y divide-border-soft">
-                  {chartsQuery.data.topSellingProducts.slice(0, 6).map((p, idx) => (
-                    <li key={p.productId} className="flex items-center justify-between px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="flex size-7 items-center justify-center rounded-full bg-amber-100 text-xs font-semibold text-amber-800">
-                          {formatNumber(idx + 1)}
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-charcoal">{p.nameAr || p.nameEn}</p>
-                          <p className="text-xs text-charcoal-soft">{formatNumber(p.quantity)} مبيعًا</p>
-                        </div>
-                      </div>
-                      <span className="text-sm font-medium text-charcoal">{formatCurrency(p.revenue)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>المبيعات اليومية</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {chartsQuery.data?.dailySales?.length ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={chartsQuery.data.dailySales}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => String(v).slice(5)} />
-                    <YAxis orientation="right" tick={{ fontSize: 10 }} width={70} tickFormatter={(v) => formatNumber(Number(v))} />
-                    <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} contentStyle={{ fontFamily: "inherit", borderRadius: 12 }} />
-                    <Bar dataKey="sales" name="المبيعات" fill="#f5a623" radius={[4, 4, 0, 0]} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>المبيعات الأسبوعية</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {chartsQuery.data?.weeklySales?.length ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={chartsQuery.data.weeklySales}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
-                    <XAxis dataKey="key" tick={{ fontSize: 10 }} />
-                    <YAxis orientation="right" tick={{ fontSize: 10 }} width={70} tickFormatter={(v) => formatNumber(Number(v))} />
-                    <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} contentStyle={{ fontFamily: "inherit", borderRadius: 12 }} />
-                    <Bar dataKey="sales" name="المبيعات" fill="#dd8a0e" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>المبيعات الشهرية</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {chartsQuery.data?.monthlySales?.length ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={chartsQuery.data.monthlySales}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
-                    <XAxis dataKey="key" tick={{ fontSize: 10 }} />
-                    <YAxis orientation="right" tick={{ fontSize: 10 }} width={70} tickFormatter={(v) => formatNumber(Number(v))} />
-                    <Tooltip formatter={(v) => formatCurrency(Number(v ?? 0))} contentStyle={{ fontFamily: "inherit", borderRadius: 12 }} />
-                    <Bar dataKey="sales" name="المبيعات" fill="#b56d0a" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>أفضل الأقسام</CardTitle>
-            </CardHeader>
-            <CardBody className="p-0">
-              {chartsQuery.data?.topCategories?.length ? (
-                <ul className="divide-y divide-border-soft">
-                  {chartsQuery.data.topCategories.slice(0, 6).map((c, idx) => (
-                    <li key={c.categoryId} className="flex items-center justify-between px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="flex size-7 items-center justify-center rounded-full bg-amber-100 text-xs font-semibold text-amber-800">
-                          {formatNumber(idx + 1)}
-                        </span>
-                        <p className="text-sm font-medium text-charcoal">{c.nameAr || c.nameEn}</p>
-                      </div>
-                      <span className="text-sm font-medium text-charcoal">{formatCurrency(c.revenue)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>استخدام الكوبونات</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {chartsQuery.data?.couponUsage?.length ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={chartsQuery.data.couponUsage}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => String(v).slice(5)} />
-                    <YAxis orientation="right" tick={{ fontSize: 10 }} width={40} />
-                    <Tooltip contentStyle={{ fontFamily: "inherit", borderRadius: 12 }} />
-                    <Area type="monotone" dataKey="usages" name="مرات الاستخدام" stroke="#2f6fa8" fill="#2f6fa833" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>العملاء الجدد</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {chartsQuery.data?.newCustomersOverTime?.length ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={chartsQuery.data.newCustomersOverTime}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => String(v).slice(5)} />
-                    <YAxis orientation="right" tick={{ fontSize: 10 }} width={40} />
-                    <Tooltip contentStyle={{ fontFamily: "inherit", borderRadius: 12 }} />
-                    <Bar dataKey="count" name="عملاء جدد" fill="#3f7a4f" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-10 text-center text-sm text-charcoal-soft">{COMMON_AR.noData}</p>
+                <EmptyState title={COMMON_AR.noOrders} />
               )}
             </CardBody>
           </Card>
         </div>
+      </section>
+
+      {/* Product analytics */}
+      <section className="mb-6">
+        <h2 className="mb-3 text-base font-semibold text-charcoal">تحليلات المنتجات</h2>
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader>
+            <CardTitle>المنتجات الأكثر مبيعًا</CardTitle>
+          </CardHeader>
+          {chartsQuery.isLoading ? (
+            <CardBody>
+              <Skeleton className="h-48 w-full rounded-[var(--radius-md)]" />
+            </CardBody>
+          ) : chartsQuery.isError ? (
+            <CardBody>
+              <ErrorState message="تعذر تحميل المنتجات." onRetry={() => chartsQuery.refetch()} />
+            </CardBody>
+          ) : (charts?.topSellingProducts?.length ?? 0) > 0 ? (
+            <DataTable
+              columns={productColumns}
+              rows={charts!.topSellingProducts}
+              rowKey={(row) => row.productId}
+              dense
+            />
+          ) : (
+            <CardBody>
+              <EmptyState title={COMMON_AR.noData} />
+            </CardBody>
+          )}
+        </Card>
+      </section>
+
+      {/* Category analytics */}
+      <section className="mb-6">
+        <h2 className="mb-3 text-base font-semibold text-charcoal">تحليلات الأقسام</h2>
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader>
+            <CardTitle>الأقسام الأكثر مبيعًا</CardTitle>
+          </CardHeader>
+          {chartsQuery.isLoading ? (
+            <CardBody>
+              <Skeleton className="h-48 w-full rounded-[var(--radius-md)]" />
+            </CardBody>
+          ) : chartsQuery.isError ? (
+            <CardBody>
+              <ErrorState message="تعذر تحميل الأقسام." onRetry={() => chartsQuery.refetch()} />
+            </CardBody>
+          ) : (charts?.topCategories?.length ?? 0) > 0 ? (
+            <DataTable
+              columns={categoryColumns}
+              rows={charts!.topCategories}
+              rowKey={(row) => row.categoryId}
+              dense
+            />
+          ) : (
+            <CardBody>
+              <EmptyState title={COMMON_AR.noData} />
+            </CardBody>
+          )}
+        </Card>
+      </section>
+
+      {/* Customer analytics */}
+      <section className="mb-2">
+        <h2 className="mb-3 text-base font-semibold text-charcoal">تحليلات العملاء</h2>
+        <Card>
+          <CardHeader>
+            <CardTitle>العملاء الجدد بمرور الوقت</CardTitle>
+            {summary && (
+              <span className="text-xs text-charcoal-soft">
+                الإجمالي في الفترة: {formatNumber(summary.newCustomers)}
+              </span>
+            )}
+          </CardHeader>
+          <CardBody>
+            {chartsQuery.isLoading ? (
+              <ChartSkeleton />
+            ) : chartsQuery.isError ? (
+              <ErrorState message="تعذر تحميل بيانات العملاء." onRetry={() => chartsQuery.refetch()} />
+            ) : newCustomersSeries.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={newCustomersSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ece3d3" />
+                  <XAxis
+                    dataKey="dateLabel"
+                    tick={{ fontSize: 11 }}
+                    interval="preserveStartEnd"
+                    minTickGap={24}
+                  />
+                  <YAxis tick={{ fontSize: 11 }} width={48} orientation="right" />
+                  <Tooltip
+                    formatter={(value) => [formatNumber(Number(value ?? 0)), "عملاء جدد"]}
+                    labelFormatter={(_, payload) => {
+                      const row = payload?.[0]?.payload as { date?: string } | undefined;
+                      return row?.date ? formatDate(row.date) : "";
+                    }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid #ece3d3",
+                      fontFamily: "inherit",
+                      direction: "rtl",
+                    }}
+                  />
+                  <Bar dataKey="count" name="عملاء جدد" fill="#3f7a4f" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState title={COMMON_AR.noData} description="لا يوجد عملاء جدد في هذه الفترة." />
+            )}
+          </CardBody>
+        </Card>
+      </section>
     </div>
   );
 }
