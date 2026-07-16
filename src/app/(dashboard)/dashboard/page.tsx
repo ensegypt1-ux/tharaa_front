@@ -30,7 +30,7 @@ import { ErrorState } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { getAnalyticsCharts, getAnalyticsOverview } from "@/lib/api/analytics";
-import type { OrderStatus } from "@/lib/types";
+import type { AnalyticsCharts, OrderStatus } from "@/lib/types";
 import {
   formatCurrency,
   formatDate,
@@ -137,7 +137,7 @@ export default function DashboardOverviewPage() {
     [charts?.newCustomersOverTime],
   );
 
-  const productColumns: DataTableColumn<(typeof charts)["topSellingProducts"][number]> = useMemo(
+  const productColumns: DataTableColumn<AnalyticsCharts["topSellingProducts"][number]>[] = useMemo(
     () => [
       {
         key: "nameAr",
@@ -165,7 +165,7 @@ export default function DashboardOverviewPage() {
     [],
   );
 
-  const categoryColumns: DataTableColumn<(typeof charts)["topCategories"][number]> = useMemo(
+  const categoryColumns: DataTableColumn<AnalyticsCharts["topCategories"][number]>[] = useMemo(
     () => [
       {
         key: "nameAr",
